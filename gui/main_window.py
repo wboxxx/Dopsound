@@ -324,9 +324,14 @@ class MagicstompHILGUI:
                   style='Large.TButton').grid(row=0, column=0, padx=5)
         
         ttk.Button(actions_frame,
+                  text="🔍 List MIDI Ports",
+                  command=self.list_midi_ports,
+                  style='Large.TButton').grid(row=0, column=1, padx=5)
+        
+        ttk.Button(actions_frame,
                   text="💾 Save Patch",
                   command=self.save_patch,
-                  style='Large.TButton').grid(row=0, column=1, padx=5)
+                  style='Large.TButton').grid(row=0, column=2, padx=5)
     
     def create_audio_monitoring_section(self):
         """Create audio monitoring section."""
@@ -722,13 +727,55 @@ class MagicstompHILGUI:
             return
         
         try:
-            # This would integrate with the HIL system to send SysEx
-            self.update_status("Patch sent to Magicstomp")
-            messagebox.showinfo("Success", "Patch sent to Magicstomp successfully!")
+            self.update_status("Sending patch to Magicstomp...")
+            print("🔍 DEBUG: Starting patch send process...")
+            print(f"🔍 DEBUG: Current patch: {self.current_patch}")
             
+            # Import the adapter
+            from adapter_magicstomp import MagicstompAdapter
+            adapter = MagicstompAdapter()
+            
+            # List available MIDI ports first
+            print("🔍 DEBUG: Listing MIDI ports...")
+            adapter.list_midi_ports()
+            
+            # Convert patch to SysEx
+            print("🔍 DEBUG: Converting patch to SysEx...")
+            syx_data = adapter.json_to_syx(self.current_patch, patch_number=0)
+            print(f"🔍 DEBUG: SysEx data length: {len(syx_data)} bytes")
+            print(f"🔍 DEBUG: SysEx header: {syx_data[:10]}...")
+            
+            # Send to device
+            print("🔍 DEBUG: Sending to Magicstomp device...")
+            success = adapter.send_to_device(syx_data, port_name=None)
+            
+            if success:
+                self.update_status("✅ Patch sent to Magicstomp successfully!")
+                print("✅ DEBUG: Patch sent successfully!")
+                messagebox.showinfo("Success", "Patch sent to Magicstomp successfully!")
+            else:
+                self.update_status("❌ Failed to send patch to Magicstomp")
+                print("❌ DEBUG: Failed to send patch!")
+                messagebox.showerror("Error", "Failed to send patch to Magicstomp. Check MIDI connection.")
+                
         except Exception as e:
-            self.update_status(f"Error sending patch: {e}")
-            messagebox.showerror("Error", f"Failed to send patch:\n{e}")
+            error_msg = f"Error sending patch: {e}"
+            self.update_status(f"❌ {error_msg}")
+            print(f"❌ DEBUG: Exception: {e}")
+            messagebox.showerror("Error", error_msg)
+    
+    def list_midi_ports(self):
+        """List available MIDI ports."""
+        try:
+            from adapter_magicstomp import MagicstompAdapter
+            adapter = MagicstompAdapter()
+            adapter.list_midi_ports()
+            self.update_status("MIDI ports listed in console")
+        except Exception as e:
+            error_msg = f"Error listing MIDI ports: {e}"
+            self.update_status(f"❌ {error_msg}")
+            print(f"❌ DEBUG: Exception: {e}")
+            messagebox.showerror("Error", error_msg)
     
     def save_patch(self):
         """Save current patch to file."""

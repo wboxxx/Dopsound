@@ -519,32 +519,58 @@ class MagicstompAdapter:
             True si l'envoi a réussi
         """
         print("📤 Envoi vers device Magicstomp...")
+        print(f"🔍 DEBUG: Port name requested: {port_name}")
+        print(f"🔍 DEBUG: SysEx data to send: {len(syx_data)} bytes")
+        print(f"🔍 DEBUG: SysEx header: {syx_data[:6]} (F0, Manufacturer, Device, Magicstomp, Command, Patch)")
         
         try:
             # Trouve le port de sortie
+            all_output_ports = mido.get_output_names()
+            print(f"🔍 DEBUG: All available output ports: {all_output_ports}")
+            
             if port_name:
-                output_ports = [name for name in mido.get_output_names() if port_name.lower() in name.lower()]
+                output_ports = [name for name in all_output_ports if port_name.lower() in name.lower()]
+                print(f"🔍 DEBUG: Searching for port containing '{port_name}'")
             else:
-                output_ports = [name for name in mido.get_output_names() if 'magicstomp' in name.lower()]
+                output_ports = [name for name in all_output_ports if 'magicstomp' in name.lower()]
+                print(f"🔍 DEBUG: Searching for port containing 'magicstomp'")
+            
+            print(f"🔍 DEBUG: Found matching ports: {output_ports}")
             
             if not output_ports:
                 print("❌ Aucun port Magicstomp trouvé")
-                print("   Ports disponibles:", mido.get_output_names())
+                print("   Ports disponibles:", all_output_ports)
+                print("💡 CONSEIL: Vérifiez que votre Magicstomp est connecté et reconnu par Windows")
+                print("💡 CONSEIL: Essayez de déconnecter/reconnecter le câble USB/MIDI")
                 return False
             
-            port_name = output_ports[0]
-            print(f"   Utilisation du port: {port_name}")
+            selected_port = output_ports[0]
+            print(f"   Utilisation du port: {selected_port}")
             
             # Envoie le message SysEx
-            with mido.open_output(port_name) as port:
-                syx_message = mido.Message('sysex', data=syx_data[1:-1])  # Exclut F0 et F7
+            print("🔍 DEBUG: Opening MIDI port...")
+            with mido.open_output(selected_port) as port:
+                print("🔍 DEBUG: Port opened successfully")
+                
+                # Prepare SysEx message (exclude F0 and F7)
+                syx_message_data = syx_data[1:-1]
+                print(f"🔍 DEBUG: SysEx message data: {len(syx_message_data)} bytes")
+                print(f"🔍 DEBUG: First 10 bytes: {syx_message_data[:10]}")
+                
+                syx_message = mido.Message('sysex', data=syx_message_data)
+                print("🔍 DEBUG: Sending SysEx message...")
                 port.send(syx_message)
+                print("🔍 DEBUG: Message sent!")
             
             print("✅ Message SysEx envoyé avec succès")
+            print(f"💡 Le patch a été envoyé sur le patch #{syx_data[5]} (bank 0)")
             return True
             
         except Exception as e:
             print(f"❌ Erreur lors de l'envoi: {e}")
+            print(f"🔍 DEBUG: Exception type: {type(e).__name__}")
+            import traceback
+            print(f"🔍 DEBUG: Traceback: {traceback.format_exc()}")
             return False
     
     def list_midi_ports(self) -> None:
