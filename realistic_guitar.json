@@ -1,0 +1,52 @@
+{
+  "amp": {
+    "model": "TWEED_BASSMAN",
+    "gain": 0.9,
+    "bass": 1.0,
+    "mid": 0.11736268753062928,
+    "treble": 0.0,
+    "presence": 0.0,
+    "cab": "4x10_TWEED"
+  },
+  "booster": {
+    "type": "DISTORTION",
+    "level": 0.4
+  },
+  "delay": {
+    "enabled": false
+  },
+  "reverb": {
+    "enabled": false
+  },
+  "mod": {
+    "enabled": true,
+    "type": "CHORUS",
+    "rate_hz": 0.24855993056103529,
+    "depth": 0.31014931907880433,
+    "mix": 0.2067662127192029
+  },
+  "meta": {
+    "backend": "librosa",
+    "analysis_version": "2.0",
+    "features": {
+      "spectral_tilt_db": -39.22670580218015,
+      "spectral_centroid_mean": 469.4507501225171,
+      "thd_proxy": 1.7883393860927095,
+      "onset_delay_ms": [
+        0.0,
+        0.0
+      ],
+      "reverb_estimate": [
+        0.0,
+        0.0
+      ],
+      "lfo_rate_hz": [
+        0.24855993056103529,
+        0.10338310635960145
+      ],
+      "tempo_bpm": null,
+      "sample_rate": 44100,
+      "duration_s": 4.0
+    }
+  }
+}

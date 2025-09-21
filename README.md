@@ -4,11 +4,12 @@ Pipeline complet pour analyser des fichiers audio de guitare et générer automa
 
 ## 🚀 Fonctionnalités
 
-- **Analyse audio intelligente** : Détection automatique des effets (delay, reverb, chorus, phaser, distortion)
+- **Analyse audio dual backend** : Essentia (C++ core) + librosa (pure Python) avec sélection runtime
+- **Détection automatique des effets** : delay, reverb, chorus, phaser, distortion avec heuristiques explicites
 - **Mapping intelligent** : Conversion des caractéristiques audio vers paramètres Magicstomp
 - **Export flexible** : JSON neutre + SysEx Magicstomp + envoi direct USB-MIDI
-- **Heuristiques explicites** : Logs détaillés avec scores de confiance
-- **Interface CLI complète** : Pipeline automatisé en une commande
+- **Interface CLI complète** : Pipeline automatisé avec sélection de backend
+- **Fallback automatique** : Essentia → librosa si dépendances manquantes
 
 ## 📋 Prérequis
 
@@ -18,51 +19,102 @@ Pipeline complet pour analyser des fichiers audio de guitare et générer automa
 
 ## 🛠️ Installation
 
+### Installation minimale (librosa uniquement)
+
 ```bash
 # Clone le repository
 git clone <repository-url>
 cd Dopsound
 
-# Installe les dépendances
-pip install -r requirements.txt
+# Installation de base avec librosa
+pip install librosa mido pedalboard soundfile numpy scipy click
+```
+
+### Installation complète (avec Essentia)
+
+```bash
+# Dépendances de base
+pip install librosa mido pedalboard soundfile numpy scipy click
+
+# Essentia (optionnel, pour de meilleures performances)
+# Option 1: Via pip (si wheels disponibles)
+pip install essentia
+
+# Option 2: Via conda (recommandé)
+conda install -c conda-forge essentia
+
+# Option 3: Build from source (Linux/macOS)
+# Voir: https://essentia.upf.edu/installing.html
+```
+
+### Vérification des backends
+
+```bash
+# Vérifier les backends disponibles
+python auto_tone_match_magicstomp.py --list-backends
 ```
 
 ### Dépendances principales
 
-- `librosa` : Analyse audio et extraction de features
-- `mido` : Communication MIDI et SysEx
-- `numpy` / `scipy` : Calculs scientifiques
-- `pedalboard` : Traitement audio (optionnel, pour boucle A/B future)
+- **librosa** : Analyse audio pure Python (toujours disponible)
+- **essentia** : Analyse audio C++ optimisée (optionnel, plus rapide)
+- **mido** : Communication MIDI et SysEx
+- **numpy/scipy** : Calculs scientifiques
+- **soundfile** : Lecture/écriture fichiers audio
+- **pedalboard** : Traitement audio (optionnel)
+- **click** : Interface CLI avancée
 
 ## 🎯 Usage
 
-### Pipeline complet (recommandé)
+### Nouveau pipeline dual backend (recommandé)
 
 ```bash
-# Analyse + génération + envoi vers Magicstomp
-python cli/analyze2stomp.py guitar.wav --send
+# Auto-sélection backend (Essentia si disponible, sinon librosa)
+python auto_tone_match_magicstomp.py guitar.wav
 
-# Avec numéro de patch personnalisé
-python cli/analyze2stomp.py guitar.wav --send --patch 5
+# Force Essentia backend (plus rapide)
+python auto_tone_match_magicstomp.py guitar.wav --backend essentia
+
+# Force librosa backend (pure Python)
+python auto_tone_match_magicstomp.py guitar.wav --backend librosa
+
+# Avec envoi direct vers Magicstomp
+python auto_tone_match_magicstomp.py guitar.wav --backend auto --send
+
+# Mode verbeux avec backend spécifique
+python auto_tone_match_magicstomp.py guitar.wav --backend essentia --verbose
+```
+
+### Sélection de backend
+
+```bash
+# Variables d'environnement
+export AUDIO_BACKEND=essentia  # Force Essentia
+export AUDIO_BACKEND=librosa   # Force librosa
+export AUDIO_BACKEND=auto      # Auto-sélection (défaut)
+
+# Vérifier les backends disponibles
+python auto_tone_match_magicstomp.py --list-backends
 ```
 
 ### Génération de fichiers
 
 ```bash
-# Génère JSON + SysEx
-python cli/analyze2stomp.py guitar.wav --json patch.json --syx patch.syx
+# Génère JSON + SysEx avec backend auto
+python auto_tone_match_magicstomp.py guitar.wav --output patch.json --syx patch.syx
 
-# JSON seulement (pour debugging)
-python cli/analyze2stomp.py guitar.wav --json-only --verbose
+# Patch personnalisé sur slot 5
+python auto_tone_match_magicstomp.py guitar.wav --syx patch.syx --patch 5
 ```
 
-### Modules individuels
+### Pipeline legacy (compatible)
 
 ```bash
-# Analyse audio vers JSON
-python analyze2json.py guitar.wav --output patch.json
+# Interface CLI originale (utilise librosa)
+python cli/analyze2stomp.py guitar.wav --send
 
-# Conversion JSON vers SysEx
+# Modules individuels
+python analyze2json.py guitar.wav --output patch.json
 python adapter_magicstomp.py patch.json --output patch.syx
 ```
 
@@ -105,9 +157,17 @@ Le pipeline génère un JSON neutre avec cette structure :
     "mix": 0.18
   },
   "meta": {
-    "global_confidence": 0.75,
-    "analysis_version": "1.0",
-    "input_file": "guitar.wav"
+    "backend": "essentia",
+    "analysis_version": "2.0",
+    "features": {
+      "spectral_tilt_db": 3.2,
+      "spectral_centroid_mean": 2450.5,
+      "thd_proxy": 0.15,
+      "onset_delay_ms": [370.0, 0.3],
+      "reverb_estimate": [1.5, 0.15],
+      "lfo_rate_hz": [0.8, 0.35],
+      "tempo_bpm": 120.0
+    }
   }
 }
 ```
@@ -169,40 +229,61 @@ python cli/analyze2stomp.py guitar.wav --send
 
 ```
 Dopsound/
-├── analyze2json.py          # Analyse audio → JSON
-├── adapter_magicstomp.py    # JSON → SysEx Magicstomp
+├── auto_tone_match_magicstomp.py  # 🆕 Pipeline dual backend principal
+├── analyzers/                     # 🆕 Backends d'analyse audio
+│   ├── base.py                   # Interface abstraite
+│   ├── librosa_backend.py        # Backend librosa (pure Python)
+│   ├── essentia_backend.py       # Backend essentia (C++ optimisé)
+│   └── factory.py                # Factory avec sélection runtime
+├── analyze2json.py              # Pipeline legacy (librosa)
+├── adapter_magicstomp.py        # JSON → SysEx Magicstomp
 ├── cli/
-│   └── analyze2stomp.py     # Interface CLI complète
-├── requirements.txt         # Dépendances Python
-└── README.md               # Documentation
+│   └── analyze2stomp.py         # Interface CLI legacy
+├── tests/                        # 🆕 Tests des backends
+├── requirements.txt             # Dépendances Python
+└── README.md                   # Documentation
 ```
 
 ## 🐛 Debugging
 
-### Mode verbose
+### Mode verbose avec backend spécifique
 
 ```bash
-python cli/analyze2stomp.py guitar.wav --verbose
+# Pipeline dual backend avec logs détaillés
+python auto_tone_match_magicstomp.py guitar.wav --backend essentia --verbose
+
+# Vérifier les backends disponibles
+python auto_tone_match_magicstomp.py --list-backends
 ```
 
 ### Analyse JSON seulement
 
 ```bash
+# Pipeline dual backend (JSON auto-généré)
+python auto_tone_match_magicstomp.py guitar.wav --output patch.json --verbose
+
+# Pipeline legacy
 python cli/analyze2stomp.py guitar.wav --json-only --verbose
 ```
 
 ### Vérification SysEx
 
 ```bash
+# Génération SysEx avec backend auto
+python auto_tone_match_magicstomp.py guitar.wav --syx patch.syx --verbose
+
+# Conversion directe
 python adapter_magicstomp.py patch.json --output patch.syx
 ```
 
 ## ⚠️ Limitations connues
 
+- **Backend Essentia** : Installation complexe sur certains systèmes, fallback automatique vers librosa
 - **Mappings Magicstomp** : Basés sur MagicstompFrenzy, peuvent nécessiter ajustements
 - **Détection d'effets** : Heuristiques approximatives, résultats dépendants du contenu audio
 - **Confiance** : Scores indicatifs, toujours valider manuellement
 - **Formats audio** : Optimisé pour WAV/MP3, autres formats non testés
+- **Performance** : Essentia ~2x plus rapide que librosa, mais installation plus complexe
 
 ## 🔮 Roadmap
 
