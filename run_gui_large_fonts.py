@@ -17,14 +17,15 @@ try:
     from main_window import main
     
     if __name__ == "__main__":
-        print("🎸 Starting Magicstomp HIL GUI (EXTREMELY Large Fonts)...")
-        print("🔤 Font sizes optimized for MAXIMUM readability:")
-        print("   - Title: 48px bold (HUGE!)")
-        print("   - Sections: 28px bold") 
-        print("   - Info text: 20px")
-        print("   - Buttons: 20px-24px bold")
-        print("   - Graph titles: 28px")
-        print("📏 Window size: 1600x1000 (spacious for large fonts)")
+        print("🎸 Starting Magicstomp HIL GUI (MASSIVE Fonts + Large Graphs)...")
+        print("🔤 Font sizes optimized for ULTIMATE readability:")
+        print("   - Title: 56px bold (GIGANTIC!)")
+        print("   - Sections: 32px bold") 
+        print("   - Info text: 24px")
+        print("   - Buttons: 24px-28px bold")
+        print("   - Graph titles: 36px")
+        print("📊 Graph size: 14x10 (HUGE for better visibility)")
+        print("📏 Window size: 1800x1200 (spacious for massive fonts)")
         main()
         
 except ImportError as e:
