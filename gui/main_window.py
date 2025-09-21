@@ -57,6 +57,9 @@ class MagicstompHILGUI:
         self.current_patch = None
         self.is_live_monitoring = False
         self.audio_stream = None
+        
+        # Settings file path
+        self.settings_file = Path("settings.json")
         self.hil_matcher = None
         self.audio_manager = None
         self.is_optimizing = False
@@ -344,14 +347,24 @@ class MagicstompHILGUI:
                   style='Large.TButton').grid(row=0, column=0, padx=5)
         
         ttk.Button(actions_frame,
-                  text="🔍 List MIDI Ports",
-                  command=self.list_midi_ports,
+                  text="📂 Load Patch",
+                  command=self.load_patch,
                   style='Large.TButton').grid(row=0, column=1, padx=5)
         
         ttk.Button(actions_frame,
                   text="💾 Save Patch",
                   command=self.save_patch,
                   style='Large.TButton').grid(row=0, column=2, padx=5)
+        
+        ttk.Button(actions_frame,
+                  text="🔍 List MIDI Ports",
+                  command=self.list_midi_ports,
+                  style='Large.TButton').grid(row=1, column=0, padx=5)
+        
+        ttk.Button(actions_frame,
+                  text="⚙️ Save Settings",
+                  command=self.save_settings,
+                  style='Large.TButton').grid(row=1, column=1, padx=5)
     
     def create_audio_monitoring_section(self):
         """Create audio monitoring section."""
@@ -509,6 +522,7 @@ class MagicstompHILGUI:
             self.audio_manager = AudioDeviceManager()
             self.refresh_audio_devices()
             self.refresh_midi_ports()
+            self.load_settings()  # Load saved settings
             self.update_status("HIL system initialized successfully")
         except Exception as e:
             self.update_status(f"Error initializing HIL system: {e}")
@@ -829,6 +843,46 @@ class MagicstompHILGUI:
             print(f"❌ DEBUG: Exception: {e}")
             messagebox.showerror("Error", error_msg)
     
+    def load_patch(self):
+        """Load patch from file."""
+        try:
+            # Select patch file
+            filename = filedialog.askopenfilename(
+                title="Load Patch",
+                filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+                initialdir="out"  # Default to out directory
+            )
+            
+            if filename:
+                print(f"🔍 DEBUG: Loading patch from: {filename}")
+                
+                # Load patch from file
+                with open(filename, 'r') as f:
+                    loaded_patch = json.load(f)
+                
+                # Validate patch structure
+                if not isinstance(loaded_patch, dict):
+                    raise ValueError("Invalid patch format: not a dictionary")
+                
+                if 'effects' not in loaded_patch:
+                    raise ValueError("Invalid patch format: missing 'effects' section")
+                
+                # Set as current patch
+                self.current_patch = loaded_patch
+                
+                # Update patch display
+                self.display_patch_parameters()
+                
+                self.update_status(f"✅ Patch loaded from {Path(filename).name}")
+                print(f"✅ DEBUG: Patch loaded successfully: {loaded_patch}")
+                messagebox.showinfo("Success", f"Patch loaded from {Path(filename).name}")
+                
+        except Exception as e:
+            error_msg = f"Failed to load patch: {e}"
+            self.update_status(f"❌ {error_msg}")
+            print(f"❌ DEBUG: Load patch error: {e}")
+            messagebox.showerror("Error", error_msg)
+    
     def save_patch(self):
         """Save current patch to file."""
         if not self.current_patch:
@@ -838,18 +892,22 @@ class MagicstompHILGUI:
         file_path = filedialog.asksaveasfilename(
             title="Save Patch",
             defaultextension=".json",
-            filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+            initialdir="out"  # Default to out directory
         )
         
         if file_path:
             try:
                 with open(file_path, 'w') as f:
                     json.dump(self.current_patch, f, indent=2)
-                self.update_status(f"Patch saved to {Path(file_path).name}")
+                self.update_status(f"✅ Patch saved to {Path(file_path).name}")
+                print(f"✅ DEBUG: Patch saved to: {file_path}")
                 messagebox.showinfo("Success", f"Patch saved successfully!")
             except Exception as e:
-                self.update_status(f"Error saving patch: {e}")
-                messagebox.showerror("Error", f"Failed to save patch:\n{e}")
+                error_msg = f"Error saving patch: {e}"
+                self.update_status(f"❌ {error_msg}")
+                print(f"❌ DEBUG: Save patch error: {e}")
+                messagebox.showerror("Error", error_msg)
     
     def calibrate_system(self):
         """Calibrate audio system."""
@@ -1050,11 +1108,109 @@ class MagicstompHILGUI:
         except:
             pass
     
+    def save_settings(self):
+        """Save current settings to file."""
+        try:
+            settings = {
+                "audio_devices": {
+                    "input": self.input_device_var.get(),
+                    "output": self.output_device_var.get()
+                },
+                "midi_device": {
+                    "output_port": self.midi_port_var.get()
+                },
+                "live_input": {
+                    "enabled": self.live_input_var.get()
+                },
+                "backend": {
+                    "selected": self.backend_var.get()
+                },
+                "optimization": {
+                    "max_iterations": self.max_iterations_var.get(),
+                    "session_name": self.session_name_var.get()
+                },
+                "files": {
+                    "target_file": str(self.target_file) if self.target_file else None,
+                    "di_file": str(self.di_file) if self.di_file else None
+                }
+            }
+            
+            with open(self.settings_file, 'w') as f:
+                json.dump(settings, f, indent=2)
+            
+            print(f"✅ DEBUG: Settings saved to {self.settings_file}")
+            self.update_status("✅ Settings saved successfully")
+            
+        except Exception as e:
+            print(f"❌ DEBUG: Error saving settings: {e}")
+            self.update_status(f"❌ Error saving settings: {e}")
+    
+    def load_settings(self):
+        """Load settings from file."""
+        try:
+            if not self.settings_file.exists():
+                print("🔍 DEBUG: No settings file found, using defaults")
+                return
+            
+            with open(self.settings_file, 'r') as f:
+                settings = json.load(f)
+            
+            print(f"✅ DEBUG: Loading settings from {self.settings_file}")
+            
+            # Load audio devices
+            if "audio_devices" in settings:
+                audio_devices = settings["audio_devices"]
+                if audio_devices.get("input"):
+                    self.input_device_var.set(audio_devices["input"])
+                if audio_devices.get("output"):
+                    self.output_device_var.set(audio_devices["output"])
+            
+            # Load MIDI device
+            if "midi_device" in settings:
+                midi_device = settings["midi_device"]
+                if midi_device.get("output_port"):
+                    self.midi_port_var.set(midi_device["output_port"])
+            
+            # Load live input setting
+            if "live_input" in settings:
+                self.live_input_var.set(settings["live_input"].get("enabled", False))
+                if self.live_input_var.get():
+                    self.live_monitor_frame.grid()
+            
+            # Load backend
+            if "backend" in settings:
+                self.backend_var.set(settings["backend"].get("selected", "auto"))
+            
+            # Load optimization settings
+            if "optimization" in settings:
+                opt_settings = settings["optimization"]
+                self.max_iterations_var.set(opt_settings.get("max_iterations", "20"))
+                self.session_name_var.set(opt_settings.get("session_name", "hil_session"))
+            
+            # Load file paths
+            if "files" in settings:
+                files = settings["files"]
+                if files.get("target_file") and Path(files["target_file"]).exists():
+                    self.target_file = files["target_file"]
+                    self.target_file_var.set(Path(self.target_file).name)
+                if files.get("di_file") and Path(files["di_file"]).exists():
+                    self.di_file = files["di_file"]
+                    self.di_file_var.set(Path(self.di_file).name)
+            
+            print("✅ DEBUG: Settings loaded successfully")
+            
+        except Exception as e:
+            print(f"❌ DEBUG: Error loading settings: {e}")
+    
     def on_closing(self):
         """Handle application closing."""
         try:
             if self.is_live_monitoring:
                 self.stop_live_monitoring()
+            
+            # Save settings before closing
+            self.save_settings()
+            
             self.root.destroy()
         except:
             self.root.destroy()
