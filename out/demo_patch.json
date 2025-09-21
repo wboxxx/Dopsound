@@ -1,9 +1,9 @@
 {
-  "gain": 0.5366916982407735,
+  "gain": 0.614613538808824,
   "treble": 1.0,
-  "presence": 0.9999999999999999,
-  "delay_mix": 0.08,
-  "delay_feedback": 0.19999999999999998,
+  "presence": 1.0,
+  "delay_mix": 0.0,
+  "delay_feedback": 0.09999999999999998,
   "delay_time_ms": 325,
   "reverb_mix": 0.51,
   "reverb_decay_s": 3.0,
