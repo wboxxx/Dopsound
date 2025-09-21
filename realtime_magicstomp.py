@@ -200,7 +200,7 @@ class RealtimeMagicstomp:
     
     def calculate_checksum(self, data: List[int]) -> int:
         """
-        Calcule le checksum XOR pour les messages sysex.
+        Calcule le checksum pour les messages sysex (comme MagicstompFrenzy).
         
         Args:
             data: Liste des bytes de données (sans F0 et F7)
@@ -210,14 +210,8 @@ class RealtimeMagicstomp:
         """
         checksum = 0
         for byte in data:
-            checksum ^= byte
-        checksum = checksum & 0x7F  # Masque sur 7 bits
-        
-        # Évite le checksum 0 qui peut causer des problèmes
-        if checksum == 0:
-            checksum = 0x7F
-        
-        return checksum
+            checksum += byte
+        return (-checksum) & 0x7F  # Négatif + masque sur 7 bits
     
     def create_parameter_message(self, offset: int, values: List[int]) -> List[int]:
         """

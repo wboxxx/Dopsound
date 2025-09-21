@@ -207,12 +207,48 @@ class SplitVerticalGUI:
                 if 'window_geometry' in settings:
                     self.root.geometry(settings['window_geometry'])
                 
+                # Load last used files
+                if 'last_target_file' in settings and settings['last_target_file']:
+                    self.target_file = settings['last_target_file']
+                    if hasattr(self, 'target_var'):
+                        self.target_var.set(f"Target: {Path(self.target_file).name}")
+                    self.log_status(f"📁 Restored target: {Path(self.target_file).name}")
+                
+                if 'last_di_file' in settings and settings['last_di_file']:
+                    self.di_file = settings['last_di_file']
+                    if hasattr(self, 'di_var'):
+                        self.di_var.set(f"DI: {Path(self.di_file).name}")
+                    self.log_status(f"📁 Restored DI: {Path(self.di_file).name}")
+                
                 self.log_status("✅ Settings loaded successfully")
             else:
                 self.log_status("ℹ️ No settings file found - using defaults")
                 
         except Exception as e:
             self.log_status(f"⚠️ Error loading settings: {e}")
+    
+    def save_last_file_selections(self):
+        """Save last used file selections immediately."""
+        try:
+            # Load existing settings
+            if self.settings_file.exists():
+                with open(self.settings_file, 'r') as f:
+                    settings = json.load(f)
+            else:
+                settings = {}
+            
+            # Update file selections
+            settings['last_target_file'] = str(self.target_file) if self.target_file else ''
+            settings['last_di_file'] = str(self.di_file) if self.di_file else ''
+            
+            # Save back to file
+            with open(self.settings_file, 'w') as f:
+                json.dump(settings, f, indent=2)
+            
+            print(f"🔍 DEBUG: Saved file selections - Target: {self.target_file}, DI: {self.di_file}")
+            
+        except Exception as e:
+            print(f"🔍 DEBUG: Error saving file selections: {e}")
     
     def save_settings(self):
         """Save current settings to file."""
@@ -465,6 +501,10 @@ class SplitVerticalGUI:
         load_patch_btn = ttk.Button(patch_buttons_frame, text="📂 Load Patch", 
                                    command=self.load_patch)
         load_patch_btn.pack(side=tk.LEFT, padx=(0, 10))
+        
+        apply_patch_btn = ttk.Button(patch_buttons_frame, text="🎛️ Apply to Effects", 
+                                    command=self.apply_patch_to_effects)
+        apply_patch_btn.pack(side=tk.LEFT, padx=(0, 10))
         
         send_patch_btn = ttk.Button(patch_buttons_frame, text="📤 Send to Magicstomp", 
                                    command=self.send_patch_to_magicstomp)
@@ -843,6 +883,9 @@ class SplitVerticalGUI:
             self.target_var.set(filename)
             self.log_status(f"📁 Target: {Path(file_path).name}")
             self.update_status_info()
+            
+            # Save the selection automatically
+            self.save_last_file_selections()
     
     def select_di_file(self):
         """Select DI audio file."""
@@ -860,6 +903,9 @@ class SplitVerticalGUI:
             self.di_var.set(filename)
             self.log_status(f"📁 DI: {Path(file_path).name}")
             self.update_status_info()
+            
+            # Save the selection automatically
+            self.save_last_file_selections()
     
     def load_effect_widget(self):
         """Load selected effect widget."""
@@ -1259,7 +1305,48 @@ File: {Path(self.target_file).name}"""
             self.display_patch_parameters()
             
             self.log_status("✅ Basic patch generated from fallback analysis")
-            self.log_status("💡 Load an effect in Effects tab to apply parameters")
+            
+            # Save the target file used for this patch
+            self.save_last_file_selections()
+            
+            # Try to apply patch to current effect widget if available
+            if self.current_effect_widget and hasattr(self.current_effect_widget, 'set_all_parameters'):
+                try:
+                    print("🔍 DEBUG: Applying basic patch to current effect widget...")
+                    
+                    # Convert patch to widget parameters
+                    widget_params = self.convert_patch_to_widget_params(basic_patch)
+                    print(f"🔍 DEBUG: Converted widget params: {widget_params}")
+                    
+                    if widget_params:
+                        # Apply parameters to effect widget
+                        self.current_effect_widget.set_all_parameters(widget_params)
+                        self.current_parameters = widget_params
+                        
+                        # Store as target parameters for impact visualization
+                        self.target_parameters = widget_params.copy()
+                        
+                        # Update impact visualization
+                        if self.impact_visualizer:
+                            print("🔍 DEBUG: Updating impact visualization with basic patch...")
+                            self.update_impact_visualization()
+                        
+                        self.log_status("🎛️ Basic patch applied to current effect!")
+                        self.log_status("💡 Go to Analysis tab to see the parameter impacts!")
+                        print("🔍 DEBUG: Basic patch successfully applied to effect widget")
+                    else:
+                        self.log_status("⚠️ Could not convert patch to widget parameters")
+                        self.log_status("💡 Load an effect in Effects tab to apply parameters")
+                        
+                except Exception as e:
+                    print(f"🔍 DEBUG: Error applying basic patch to effect: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    self.log_status(f"⚠️ Error applying patch to effect: {e}")
+                    self.log_status("💡 Load an effect in Effects tab to apply parameters")
+            else:
+                self.log_status("💡 Load an effect in Effects tab to apply parameters")
+                print("🔍 DEBUG: No effect widget loaded - patch ready for manual application")
             
         except Exception as e:
             print(f"🔍 DEBUG: Error generating basic patch: {e}")
@@ -1739,6 +1826,68 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
         
         threading.Thread(target=generate_thread, daemon=True).start()
     
+    def apply_patch_to_effects(self):
+        """Apply current patch to loaded effect widgets."""
+        print("🔍 DEBUG: Starting apply_patch_to_effects()")
+        
+        if not self.current_patch:
+            self.log_status("⚠️ No patch to apply")
+            print("🔍 DEBUG: No current patch to apply")
+            return
+        
+        if not self.current_effect_widget:
+            self.log_status("⚠️ No effect loaded - please load an effect in Effects tab first")
+            print("🔍 DEBUG: No current effect widget")
+            return
+        
+        try:
+            self.log_status("🎛️ Applying patch to current effect...")
+            print("🔍 DEBUG: Applying patch to current effect...")
+            print(f"🔍 DEBUG: Current patch: {self.current_patch}")
+            
+            # Convert patch to widget parameters
+            widget_params = self.convert_patch_to_widget_params(self.current_patch)
+            print(f"🔍 DEBUG: Converted widget params: {widget_params}")
+            
+            if widget_params:
+                # Apply parameters to effect widget
+                if hasattr(self.current_effect_widget, 'set_all_parameters'):
+                    self.current_effect_widget.set_all_parameters(widget_params)
+                    print("🔍 DEBUG: Parameters applied to effect widget")
+                else:
+                    self.log_status("⚠️ Effect widget doesn't support set_all_parameters")
+                    print("🔍 DEBUG: Effect widget doesn't support set_all_parameters")
+                    return
+                
+                # Update current parameters
+                self.current_parameters = widget_params
+                
+                # Store as target parameters for impact visualization
+                self.target_parameters = widget_params.copy()
+                
+                # Update impact visualization
+                if self.impact_visualizer:
+                    print("🔍 DEBUG: Updating impact visualization...")
+                    self.update_impact_visualization()
+                    print("🔍 DEBUG: Impact visualization updated")
+                else:
+                    print("🔍 DEBUG: No impact visualizer available")
+                
+                param_names = list(widget_params.keys())
+                self.log_status(f"✅ Applied {len(param_names)} parameters to effect")
+                self.log_status("💡 Go to Analysis tab to see the parameter impacts!")
+                print(f"🔍 DEBUG: Successfully applied {len(param_names)} parameters: {param_names}")
+                
+            else:
+                self.log_status("⚠️ Could not convert patch to widget parameters")
+                print("🔍 DEBUG: Could not convert patch to widget parameters")
+                
+        except Exception as e:
+            self.log_status(f"❌ Error applying patch to effects: {e}")
+            print(f"🔍 DEBUG: Error applying patch to effects: {e}")
+            import traceback
+            traceback.print_exc()
+    
     def save_patch(self):
         """Save current patch to file."""
         print("🔍 DEBUG: Starting save_patch()")
@@ -1832,6 +1981,9 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                 # Display patch parameters
                 self.display_patch_parameters()
                 
+                # Try to identify and auto-load effects from patch
+                self.auto_load_effects_from_patch()
+                
                 # If effect is loaded, apply parameters
                 if self.current_effect_widget and hasattr(self.current_effect_widget, 'set_all_parameters'):
                     # Convert patch parameters to widget parameters
@@ -1840,7 +1992,15 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                         self.current_effect_widget.set_all_parameters(widget_params)
                         self.current_parameters = widget_params
                         self.log_status("🎛️ Parameters applied to current effect")
+                        self.log_status("💡 Go to Effects tab to see the visual representation!")
                         print(f"🔍 DEBUG: Applied parameters to effect: {widget_params}")
+                        
+                        # Auto-update impact visualization after applying patch
+                        self.root.after(100, self.update_impact_visualization)
+                        self.log_status("📊 Impact visualization updated automatically")
+                else:
+                    self.log_status("💡 Load an effect in Effects tab, then click '🎛️ Apply to Effects' to see visual representation")
+                    print("🔍 DEBUG: No effect loaded - patch ready for manual application")
                 
             else:
                 self.log_status("⚠️ Invalid patch file format")
@@ -1855,6 +2015,7 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
     def convert_patch_to_widget_params(self, patch):
         """Convert patch format to widget parameters format."""
         print("🔍 DEBUG: Starting convert_patch_to_widget_params()")
+        print(f"🔍 DEBUG: Input patch: {patch}")
         
         try:
             widget_params = {}
@@ -1862,16 +2023,193 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
             # Extract parameters from patch sections
             for section_name, section_data in patch.items():
                 if isinstance(section_data, dict) and section_name != 'meta':
+                    print(f"🔍 DEBUG: Processing section: {section_name}")
                     for param_name, param_value in section_data.items():
                         if param_name != 'enabled':
-                            widget_params[param_name] = param_value
+                            # Apply parameter limits if needed
+                            limited_value = self.apply_parameter_limits(param_name, param_value)
+                            widget_params[param_name] = limited_value
+                            print(f"🔍 DEBUG: {param_name}: {param_value} -> {limited_value}")
             
-            print(f"🔍 DEBUG: Converted widget params: {widget_params}")
+            print(f"🔍 DEBUG: Final converted widget params: {widget_params}")
             return widget_params
             
         except Exception as e:
             print(f"🔍 DEBUG: Error converting patch: {e}")
+            import traceback
+            traceback.print_exc()
             return {}
+    
+    def auto_load_effects_from_patch(self):
+        """Auto-identify and load effects from patch data."""
+        print("🔍 DEBUG: Starting auto_load_effects_from_patch()")
+        
+        if not self.current_patch:
+            print("🔍 DEBUG: No current patch to analyze")
+            return
+        
+        try:
+            # Analyze patch to identify effects
+            identified_effects = self.identify_effects_from_patch(self.current_patch)
+            print(f"🔍 DEBUG: Identified effects: {identified_effects}")
+            
+            if identified_effects:
+                # Try to load the first identified effect
+                effect_to_load = identified_effects[0]  # Load the first/most important effect
+                print(f"🔍 DEBUG: Auto-loading effect: {effect_to_load}")
+                
+                # Load the effect
+                success = self.load_effect_by_name(effect_to_load)
+                if success:
+                    self.log_status(f"🎛️ Auto-loaded effect: {effect_to_load}")
+                    print(f"🔍 DEBUG: Successfully auto-loaded effect: {effect_to_load}")
+                    
+                    # Auto-apply patch parameters to the loaded effect
+                    if self.current_patch and self.current_effect_widget and hasattr(self.current_effect_widget, 'set_all_parameters'):
+                        widget_params = self.convert_patch_to_widget_params(self.current_patch)
+                        if widget_params:
+                            self.current_effect_widget.set_all_parameters(widget_params)
+                            self.current_parameters = widget_params
+                            self.target_parameters = widget_params.copy()
+                            
+                            # Update impact visualization
+                            self.root.after(100, self.update_impact_visualization)
+                            self.log_status("📊 Impact visualization updated automatically")
+                            self.log_status("🎛️ Patch parameters applied to auto-loaded effect")
+                            print(f"🔍 DEBUG: Auto-applied patch parameters: {widget_params}")
+                else:
+                    self.log_status(f"⚠️ Could not auto-load effect: {effect_to_load}")
+                    print(f"🔍 DEBUG: Failed to auto-load effect: {effect_to_load}")
+            else:
+                print("🔍 DEBUG: No effects identified in patch")
+                self.log_status("💡 No specific effects identified in patch - manual selection required")
+                
+        except Exception as e:
+            print(f"🔍 DEBUG: Error in auto_load_effects_from_patch: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def identify_effects_from_patch(self, patch):
+        """Identify effects from patch data."""
+        print("🔍 DEBUG: Starting identify_effects_from_patch()")
+        print(f"🔍 DEBUG: Analyzing patch: {patch}")
+        
+        identified_effects = []
+        
+        try:
+            # Check patch sections to identify effects
+            for section_name, section_data in patch.items():
+                if isinstance(section_data, dict) and section_name != 'meta':
+                    print(f"🔍 DEBUG: Analyzing section: {section_name}")
+                    
+                    # Map section names to effect names
+                    effect_mapping = {
+                        'compressor': 'Compressor',
+                        'eq': 'EQ',
+                        'delay': 'Mono Delay',
+                        'stereo_delay': 'Stereo Delay',
+                        'tape_echo': 'Tape Echo',
+                        'chorus': 'Chorus',
+                        'flanger': 'Flanger',
+                        'phaser': 'Phaser',
+                        'overdrive': 'Overdrive',
+                        'distortion': 'Distortion',
+                        'fuzz': 'Fuzz',
+                        'reverb': 'Reverb',
+                        'gate': 'Gate',
+                        'limiter': 'Limiter'
+                    }
+                    
+                    if section_name in effect_mapping:
+                        effect_name = effect_mapping[section_name]
+                        if effect_name not in identified_effects:
+                            identified_effects.append(effect_name)
+                            print(f"🔍 DEBUG: Identified effect: {effect_name}")
+            
+            print(f"🔍 DEBUG: Final identified effects: {identified_effects}")
+            return identified_effects
+            
+        except Exception as e:
+            print(f"🔍 DEBUG: Error identifying effects: {e}")
+            return []
+    
+    def load_effect_by_name(self, effect_name):
+        """Load an effect by name."""
+        print(f"🔍 DEBUG: Starting load_effect_by_name: {effect_name}")
+        
+        try:
+            # Map effect names to effect types
+            effect_type_mapping = {
+                'Compressor': 0x01,
+                'EQ': 0x02,
+                'Mono Delay': 0x0D,
+                'Stereo Delay': 0x0E,
+                'Tape Echo': 0x0F,
+                'Chorus': 0x03,
+                'Flanger': 0x04,
+                'Phaser': 0x05,
+                'Overdrive': 0x06,
+                'Distortion': 0x07,
+                'Fuzz': 0x08,
+                'Reverb': 0x09,
+                'Gate': 0x0A,
+                'Limiter': 0x0B
+            }
+            
+            if effect_name in effect_type_mapping:
+                effect_type = effect_type_mapping[effect_name]
+                print(f"🔍 DEBUG: Effect type for {effect_name}: {effect_type}")
+                
+                # Load the effect widget
+                success = self.load_effect_widget_by_type(effect_type)
+                if success:
+                    print(f"🔍 DEBUG: Successfully loaded effect widget for {effect_name}")
+                    return True
+                else:
+                    print(f"🔍 DEBUG: Failed to load effect widget for {effect_name}")
+                    return False
+            else:
+                print(f"🔍 DEBUG: Unknown effect name: {effect_name}")
+                return False
+                
+        except Exception as e:
+            print(f"🔍 DEBUG: Error loading effect by name: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
+    def load_effect_widget_by_type(self, effect_type):
+        """Load effect widget by type number."""
+        print(f"🔍 DEBUG: Starting load_effect_widget_by_type: {effect_type}")
+        
+        try:
+            # Get effect widget from registry
+            if hasattr(self, 'effect_registry'):
+                effect_class = self.effect_registry.get_effect_class(effect_type)
+                if effect_class:
+                    # Create and load the effect widget
+                    self.current_effect_widget = effect_class(self.effects_frame)
+                    self.current_effect_type = effect_type
+                    
+                    # Update UI
+                    if hasattr(self, 'current_effect_var'):
+                        effect_name = self.effect_registry.get_effect_name(effect_type)
+                        self.current_effect_var.set(f"Loaded: {effect_name}")
+                    
+                    print(f"🔍 DEBUG: Successfully loaded effect widget type {effect_type}")
+                    return True
+                else:
+                    print(f"🔍 DEBUG: Effect class not found for type {effect_type}")
+                    return False
+            else:
+                print("🔍 DEBUG: Effect registry not available")
+                return False
+                
+        except Exception as e:
+            print(f"🔍 DEBUG: Error loading effect widget by type: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
     
     def send_patch_to_magicstomp(self):
         """Send current patch to Magicstomp device."""
