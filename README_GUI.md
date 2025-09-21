@@ -2,15 +2,30 @@
 
 ## 🚀 Lancement du GUI
 
-### Démarrage Simple
+### Démarrage Standard
 ```bash
 python run_gui.py
+```
+
+### Démarrage Taille Large (Recommandé)
+```bash
+python run_gui_large.py
+```
+
+### Démarrage Plein Écran
+```bash
+python run_gui_fullscreen.py
 ```
 
 ### Démarrage Direct
 ```bash
 python gui/main_window.py
 ```
+
+### Options de Taille
+- **Standard** : 1200x800 (compact)
+- **Large** : 1600x1000 (recommandé pour la lisibilité)
+- **Plein écran** : Taille écran complète (maximum de visibilité)
 
 ## 🎯 Workflow Complet dans le GUI
 

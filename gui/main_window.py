@@ -42,8 +42,11 @@ class MagicstompHILGUI:
         """Initialize the main GUI application."""
         self.root = tk.Tk()
         self.root.title("🎸 Magicstomp HIL Tone Matcher")
-        self.root.geometry("1200x800")
+        self.root.geometry("1600x1000")
         self.root.configure(bg='#2c3e50')
+        
+        # Make window resizable
+        self.root.minsize(1400, 900)
         
         # State variables
         self.target_file = None
@@ -68,36 +71,56 @@ class MagicstompHILGUI:
         # Configure modern theme
         style.theme_use('clam')
         
-        # Custom styles
+        # Custom styles with larger fonts
         style.configure('Title.TLabel', 
-                       font=('Arial', 16, 'bold'),
+                       font=('Arial', 24, 'bold'),
                        foreground='#ecf0f1',
                        background='#2c3e50')
         
         style.configure('Section.TLabel',
-                       font=('Arial', 12, 'bold'),
+                       font=('Arial', 16, 'bold'),
                        foreground='#3498db',
                        background='#2c3e50')
         
         style.configure('Info.TLabel',
-                       font=('Arial', 10),
+                       font=('Arial', 12),
                        foreground='#bdc3c7',
                        background='#2c3e50')
         
         style.configure('Success.TLabel',
-                       font=('Arial', 10, 'bold'),
+                       font=('Arial', 12, 'bold'),
                        foreground='#27ae60',
                        background='#2c3e50')
         
         style.configure('Warning.TLabel',
-                       font=('Arial', 10, 'bold'),
+                       font=('Arial', 12, 'bold'),
                        foreground='#f39c12',
                        background='#2c3e50')
         
         style.configure('Error.TLabel',
-                       font=('Arial', 10, 'bold'),
+                       font=('Arial', 12, 'bold'),
                        foreground='#e74c3c',
                        background='#2c3e50')
+        
+        # Configure button styles
+        style.configure('TButton',
+                       font=('Arial', 12, 'bold'),
+                       padding=(10, 8))
+        
+        # Configure combobox styles
+        style.configure('TCombobox',
+                       font=('Arial', 11),
+                       padding=(5, 5))
+        
+        # Configure entry styles
+        style.configure('TEntry',
+                       font=('Arial', 11),
+                       padding=(5, 5))
+        
+        # Configure large button styles
+        style.configure('Large.TButton',
+                       font=('Arial', 14, 'bold'),
+                       padding=(15, 10))
     
     def create_widgets(self):
         """Create all GUI widgets."""
@@ -142,7 +165,8 @@ class MagicstompHILGUI:
         
         ttk.Button(self.file_frame, 
                   text="Browse Target",
-                  command=self.select_target_file).grid(row=0, column=2, padx=5)
+                  command=self.select_target_file,
+                  style='Large.TButton').grid(row=0, column=2, padx=5)
         
         # DI file selection
         ttk.Label(self.file_frame, text="DI Signal:", style='Section.TLabel').grid(row=1, column=0, sticky='w', pady=5)
@@ -155,7 +179,8 @@ class MagicstompHILGUI:
         
         ttk.Button(self.file_frame,
                   text="Browse DI",
-                  command=self.select_di_file).grid(row=1, column=2, padx=5)
+                  command=self.select_di_file,
+                  style='Large.TButton').grid(row=1, column=2, padx=5)
         
         # Audio device selection
         ttk.Label(self.file_frame, text="Audio Devices:", style='Section.TLabel').grid(row=2, column=0, sticky='w', pady=5)
@@ -193,7 +218,8 @@ class MagicstompHILGUI:
         
         ttk.Button(analysis_frame,
                   text="🎵 Analyze Target & Generate Patch",
-                  command=self.analyze_and_generate_patch).grid(row=0, column=0, padx=5)
+                  command=self.analyze_and_generate_patch,
+                  style='Large.TButton').grid(row=0, column=0, padx=5)
         
         self.backend_var = tk.StringVar(value="auto")
         backend_combo = ttk.Combobox(analysis_frame,
@@ -216,11 +242,13 @@ class MagicstompHILGUI:
         
         ttk.Button(actions_frame,
                   text="📤 Send to Magicstomp",
-                  command=self.send_patch_to_magicstomp).grid(row=0, column=0, padx=5)
+                  command=self.send_patch_to_magicstomp,
+                  style='Large.TButton').grid(row=0, column=0, padx=5)
         
         ttk.Button(actions_frame,
                   text="💾 Save Patch",
-                  command=self.save_patch).grid(row=0, column=1, padx=5)
+                  command=self.save_patch,
+                  style='Large.TButton').grid(row=0, column=1, padx=5)
     
     def create_audio_monitoring_section(self):
         """Create audio monitoring section."""
@@ -245,13 +273,17 @@ class MagicstompHILGUI:
         viz_frame = ttk.Frame(self.monitor_frame)
         viz_frame.grid(row=1, column=0, columnspan=2, sticky='ew', pady=10)
         
-        # Create matplotlib figure for audio visualization
-        self.fig, (self.ax1, self.ax2) = plt.subplots(2, 1, figsize=(8, 4))
-        self.ax1.set_title("Target Audio")
-        self.ax1.set_ylabel("Amplitude")
-        self.ax2.set_title("Processed Audio")
-        self.ax2.set_ylabel("Amplitude")
-        self.ax2.set_xlabel("Time (s)")
+        # Create matplotlib figure for audio visualization (larger)
+        self.fig, (self.ax1, self.ax2) = plt.subplots(2, 1, figsize=(12, 8))
+        self.ax1.set_title("Target Audio", fontsize=16, fontweight='bold')
+        self.ax1.set_ylabel("Amplitude", fontsize=14)
+        self.ax2.set_title("Processed Audio", fontsize=16, fontweight='bold')
+        self.ax2.set_ylabel("Amplitude", fontsize=14)
+        self.ax2.set_xlabel("Time (s)", fontsize=14)
+        
+        # Increase tick label sizes
+        self.ax1.tick_params(labelsize=12)
+        self.ax2.tick_params(labelsize=12)
         
         self.canvas = FigureCanvasTkAgg(self.fig, viz_frame)
         self.canvas.get_tk_widget().pack(fill='both', expand=True)
