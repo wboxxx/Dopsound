@@ -24,15 +24,16 @@ python gui/main_window.py
 
 ### Options de Taille et Polices
 - **Standard** : 1200x800, polices normales
-- **Large Fonts** : 1400x900, **polices très grandes** (recommandé)
-- **Plein écran** : Taille écran complète, polices grandes
+- **Large Fonts** : 1600x1000, **polices ÉNORMES** (recommandé)
+- **Plein écran** : Taille écran complète, polices géantes
 
-### Tailles de Polices (Large Fonts)
-- **Titre principal** : 32px bold
-- **En-têtes de section** : 20px bold  
-- **Texte info** : 16px
-- **Boutons** : 16px-18px bold
-- **Graphiques** : 20px titres, 16px labels
+### Tailles de Polices (Large Fonts) - MAXIMUM VISIBILITY
+- **Titre principal** : 48px bold (ÉNORME!)
+- **En-têtes de section** : 28px bold  
+- **Texte info** : 20px
+- **Boutons** : 20px-24px bold
+- **Graphiques** : 28px titres, 22px labels
+- **Étiquettes graphiques** : 18px
 
 ## 🎯 Workflow Complet dans le GUI
 
