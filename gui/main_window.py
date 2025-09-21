@@ -112,6 +112,15 @@ class MagicstompHILGUI:
                        font=('Arial', 22),
                        padding=(12, 10))
         
+        # Configure dropdown listbox (the actual dropdown menu) with MASSIVE fonts
+        style.configure('TCombobox',
+                       font=('Arial', 22))
+        
+        # Also configure the dropdown arrow and field
+        style.map('TCombobox',
+                 fieldbackground=[('readonly', '#ffffff')],
+                 arrowcolor=[('active', '#000000')])
+        
         # Configure entry styles with HUGE fonts
         style.configure('TEntry',
                        font=('Arial', 22),
@@ -121,6 +130,22 @@ class MagicstompHILGUI:
         style.configure('Large.TButton',
                        font=('Arial', 28, 'bold'),
                        padding=(30, 18))
+        
+        # Force large fonts for dropdown menus (Windows specific)
+        try:
+            # This forces the dropdown list to use large fonts
+            self.root.option_add('*TCombobox*Listbox.font', ('Arial', 22))
+            self.root.option_add('*TCombobox*Listbox.selectBackground', '#3498db')
+            self.root.option_add('*TCombobox*Listbox.selectForeground', 'white')
+            # Increase dropdown height
+            self.root.option_add('*TCombobox*Listbox.height', 8)
+            
+            # Additional Windows-specific options for larger dropdown text
+            self.root.option_add('*Listbox.font', ('Arial', 22))
+            self.root.option_add('*Listbox.height', 8)
+            
+        except:
+            pass  # Fallback if option_add doesn't work
     
     def create_widgets(self):
         """Create all GUI widgets."""
@@ -195,12 +220,18 @@ class MagicstompHILGUI:
                                              width=25)
         self.input_device_combo.grid(row=0, column=1, padx=5)
         
+        # Force large font for this specific combobox
+        self.input_device_combo.bind('<Configure>', self._configure_combobox_font)
+        
         ttk.Label(device_frame, text="Output:").grid(row=0, column=2)
         self.output_device_var = tk.StringVar()
         self.output_device_combo = ttk.Combobox(device_frame,
                                               textvariable=self.output_device_var,
                                               width=25)
         self.output_device_combo.grid(row=0, column=3, padx=5)
+        
+        # Force large font for this specific combobox
+        self.output_device_combo.bind('<Configure>', self._configure_combobox_font)
         
         ttk.Button(device_frame,
                   text="Refresh Devices",
@@ -227,6 +258,9 @@ class MagicstompHILGUI:
                                    values=["auto", "librosa", "essentia"],
                                    width=10)
         backend_combo.grid(row=0, column=1, padx=5)
+        
+        # Force large font for this specific combobox
+        backend_combo.bind('<Configure>', self._configure_combobox_font)
         
         # Patch display
         self.patch_display_frame = ttk.Frame(self.patch_frame)
@@ -705,6 +739,53 @@ class MagicstompHILGUI:
         """Update status bar."""
         self.status_var.set(message)
         print(f"Status: {message}")  # Also print to console
+    
+    def _configure_combobox_font(self, event):
+        """Configure font for combobox dropdown."""
+        try:
+            widget = event.widget
+            # Force the dropdown listbox to use large font
+            widget.bind('<Button-1>', self._on_combobox_click)
+            widget.bind('<KeyPress>', self._on_combobox_key)
+        except:
+            pass  # Ignore errors
+    
+    def _on_combobox_click(self, event):
+        """Handle combobox click to configure dropdown font."""
+        try:
+            widget = event.widget
+            # Schedule font configuration after the dropdown appears
+            self.root.after(10, lambda: self._configure_dropdown_font(widget))
+        except:
+            pass
+    
+    def _on_combobox_key(self, event):
+        """Handle combobox key press to configure dropdown font."""
+        try:
+            widget = event.widget
+            # Schedule font configuration after the dropdown appears
+            self.root.after(10, lambda: self._configure_dropdown_font(widget))
+        except:
+            pass
+    
+    def _configure_dropdown_font(self, combobox):
+        """Configure the dropdown listbox font."""
+        try:
+            # Find all listbox widgets and configure their font
+            for widget in self.root.winfo_children():
+                self._recursive_configure_listbox(widget)
+        except:
+            pass
+    
+    def _recursive_configure_listbox(self, widget):
+        """Recursively find and configure listbox widgets."""
+        try:
+            if isinstance(widget, tk.Listbox):
+                widget.configure(font=('Arial', 22))
+            for child in widget.winfo_children():
+                self._recursive_configure_listbox(child)
+        except:
+            pass
     
     def run(self):
         """Run the GUI application."""
