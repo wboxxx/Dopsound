@@ -16,6 +16,7 @@ Pipeline complet pour analyser des fichiers audio de guitare et générer automa
 - **Loss perceptuel** : log-mel + MFCC pour comparaison authentique
 - **Coordinate search** : optimisation paramètre par paramètre
 - **Export complet** : JSON + SYX + WAV + rapport
+- **Interface graphique** : GUI moderne avec workflow complet
 
 ### Détection et mapping classiques
 - **Détection automatique des effets** : delay, reverb, chorus, phaser, distortion avec heuristiques explicites
@@ -117,6 +118,12 @@ python cli/auto_match_hil.py --list-devices
 
 # Démonstration (sans hardware)
 python demo_hil.py
+
+# Interface graphique moderne
+python run_gui.py
+
+# Démonstration GUI complète
+python demo_gui.py
 ```
 
 ### Sélection de backend
@@ -284,6 +291,11 @@ Dopsound/
 ├── adapter_magicstomp.py        # JSON → SysEx Magicstomp
 ├── tests/                        # 🆕 Tests des backends
 ├── out/                          # 🆕 Sorties HIL (patches, WAV, rapports)
+├── gui/                          # 🆕 Interface graphique moderne
+│   ├── main_window.py           # Fenêtre principale GUI
+│   └── __init__.py
+├── run_gui.py                    # 🆕 Lanceur GUI
+├── demo_gui.py                   # 🆕 Démonstration GUI complète
 ├── demo_hil.py                   # 🆕 Démonstration HIL (sans hardware)
 ├── demo_dual_backend.py          # 🆕 Démonstration système dual backend
 ├── requirements.txt             # Dépendances Python

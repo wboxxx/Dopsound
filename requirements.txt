@@ -10,6 +10,11 @@ click>=8.1.0
 sounddevice>=0.4.6  # Audio I/O for real-time processing
 pyaudio>=0.2.11     # Alternative audio I/O (optional)
 
+# GUI dependencies
+tkinter-tooltip>=2.0.0  # Tooltips for GUI elements
+matplotlib>=3.7.0       # Audio visualization
+threading-timer>=0.1.0  # GUI threading utilities
+
 # Optional dependencies for enhanced features
 pedalboard>=0.7.4  # Audio processing (optional)
 
