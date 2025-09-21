@@ -48,10 +48,15 @@ class MagicstompHILGUI:
         # Make window resizable
         self.root.minsize(1600, 1000)
         
+        # Handle window closing
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+        
         # State variables
         self.target_file = None
         self.di_file = None
         self.current_patch = None
+        self.is_live_monitoring = False
+        self.audio_stream = None
         self.hil_matcher = None
         self.audio_manager = None
         self.is_optimizing = False
@@ -137,12 +142,12 @@ class MagicstompHILGUI:
             self.root.option_add('*TCombobox*Listbox.font', ('Arial', 22))
             self.root.option_add('*TCombobox*Listbox.selectBackground', '#3498db')
             self.root.option_add('*TCombobox*Listbox.selectForeground', 'white')
-            # Increase dropdown height
-            self.root.option_add('*TCombobox*Listbox.height', 8)
+            # Increase dropdown height significantly
+            self.root.option_add('*TCombobox*Listbox.height', 12)
             
             # Additional Windows-specific options for larger dropdown text
             self.root.option_add('*Listbox.font', ('Arial', 22))
-            self.root.option_add('*Listbox.height', 8)
+            self.root.option_add('*Listbox.height', 12)
             
         except:
             pass  # Fallback if option_add doesn't work
@@ -193,19 +198,58 @@ class MagicstompHILGUI:
                   command=self.select_target_file,
                   style='Large.TButton').grid(row=0, column=2, padx=5)
         
+        # DI Signal section with live input option
+        di_frame = ttk.Frame(self.file_frame)
+        di_frame.grid(row=1, column=0, columnspan=3, sticky='ew', pady=5)
+        
+        ttk.Label(di_frame, text="DI Signal:", style='Section.TLabel').grid(row=0, column=0, sticky='w', pady=5)
+        
         # DI file selection
-        ttk.Label(self.file_frame, text="DI Signal:", style='Section.TLabel').grid(row=1, column=0, sticky='w', pady=5)
+        file_frame = ttk.Frame(di_frame)
+        file_frame.grid(row=1, column=0, columnspan=3, sticky='ew', pady=5)
         
         self.di_file_var = tk.StringVar(value="No file selected")
-        self.di_file_label = ttk.Label(self.file_frame,
+        self.di_file_label = ttk.Label(file_frame,
                                      textvariable=self.di_file_var,
                                      style='Info.TLabel')
-        self.di_file_label.grid(row=1, column=1, sticky='w', padx=10)
+        self.di_file_label.grid(row=0, column=0, sticky='w', padx=10)
         
-        ttk.Button(self.file_frame,
-                  text="Browse DI",
+        ttk.Button(file_frame,
+                  text="Browse DI File",
                   command=self.select_di_file,
-                  style='Large.TButton').grid(row=1, column=2, padx=5)
+                  style='Large.TButton').grid(row=0, column=1, padx=5)
+        
+        # Live input option
+        live_frame = ttk.Frame(di_frame)
+        live_frame.grid(row=2, column=0, columnspan=3, sticky='ew', pady=5)
+        
+        ttk.Label(live_frame, text="OR Live Input:", style='Section.TLabel').grid(row=0, column=0, sticky='w', padx=5)
+        
+        self.live_input_var = tk.BooleanVar(value=False)
+        self.live_input_check = ttk.Checkbutton(live_frame,
+                                              text="Use Live Guitar Input",
+                                              variable=self.live_input_var,
+                                              command=self.toggle_live_input)
+        self.live_input_check.grid(row=0, column=1, sticky='w', padx=10)
+        
+        # Live monitoring controls
+        self.live_monitor_frame = ttk.Frame(di_frame)
+        self.live_monitor_frame.grid(row=3, column=0, columnspan=3, sticky='ew', pady=5)
+        
+        self.monitor_button = ttk.Button(self.live_monitor_frame,
+                                       text="🎤 Start Live Monitoring",
+                                       command=self.toggle_live_monitoring,
+                                       style='Large.TButton')
+        self.monitor_button.grid(row=0, column=0, padx=5)
+        
+        self.live_status_var = tk.StringVar(value="Live monitoring: OFF")
+        self.live_status_label = ttk.Label(self.live_monitor_frame,
+                                         textvariable=self.live_status_var,
+                                         style='Info.TLabel')
+        self.live_status_label.grid(row=0, column=1, sticky='w', padx=10)
+        
+        # Initially hide live monitoring controls
+        self.live_monitor_frame.grid_remove()
         
         # Audio device selection
         ttk.Label(self.file_frame, text="Audio Devices:", style='Section.TLabel').grid(row=2, column=0, sticky='w', pady=5)
@@ -217,7 +261,7 @@ class MagicstompHILGUI:
         self.input_device_var = tk.StringVar()
         self.input_device_combo = ttk.Combobox(device_frame, 
                                              textvariable=self.input_device_var,
-                                             width=25)
+                                             width=35)
         self.input_device_combo.grid(row=0, column=1, padx=5)
         
         # Force large font for this specific combobox
@@ -227,7 +271,7 @@ class MagicstompHILGUI:
         self.output_device_var = tk.StringVar()
         self.output_device_combo = ttk.Combobox(device_frame,
                                               textvariable=self.output_device_var,
-                                              width=25)
+                                              width=35)
         self.output_device_combo.grid(row=0, column=3, padx=5)
         
         # Force large font for this specific combobox
@@ -256,7 +300,7 @@ class MagicstompHILGUI:
         backend_combo = ttk.Combobox(analysis_frame,
                                    textvariable=self.backend_var,
                                    values=["auto", "librosa", "essentia"],
-                                   width=10)
+                                   width=15)
         backend_combo.grid(row=0, column=1, padx=5)
         
         # Force large font for this specific combobox
@@ -368,11 +412,11 @@ class MagicstompHILGUI:
         
         ttk.Label(params_frame, text="Max Iterations:").grid(row=0, column=0, padx=5)
         self.max_iterations_var = tk.StringVar(value="20")
-        ttk.Entry(params_frame, textvariable=self.max_iterations_var, width=10).grid(row=0, column=1, padx=5)
+        ttk.Entry(params_frame, textvariable=self.max_iterations_var, width=15).grid(row=0, column=1, padx=5)
         
         ttk.Label(params_frame, text="Session Name:").grid(row=0, column=2, padx=5)
         self.session_name_var = tk.StringVar(value="hil_session")
-        ttk.Entry(params_frame, textvariable=self.session_name_var, width=15).grid(row=0, column=3, padx=5)
+        ttk.Entry(params_frame, textvariable=self.session_name_var, width=20).grid(row=0, column=3, padx=5)
         
         # Progress display
         self.progress_frame = ttk.Frame(self.optimize_frame)
@@ -487,6 +531,126 @@ class MagicstompHILGUI:
             self.di_file = file_path
             self.di_file_var.set(Path(file_path).name)
             self.update_status(f"DI file selected: {Path(file_path).name}")
+    
+    def toggle_live_input(self):
+        """Toggle live input mode."""
+        if self.live_input_var.get():
+            self.live_monitor_frame.grid()
+            self.update_status("Live input mode enabled - select audio device and start monitoring")
+        else:
+            self.live_monitor_frame.grid_remove()
+            if self.is_live_monitoring:
+                self.stop_live_monitoring()
+            self.update_status("Live input mode disabled")
+    
+    def toggle_live_monitoring(self):
+        """Toggle live monitoring."""
+        if self.is_live_monitoring:
+            self.stop_live_monitoring()
+        else:
+            self.start_live_monitoring()
+    
+    def start_live_monitoring(self):
+        """Start live audio monitoring."""
+        try:
+            import sounddevice as sd
+            import numpy as np
+            
+            # Get selected input device
+            input_device = self.input_device_var.get()
+            if not input_device:
+                messagebox.showerror("Error", "Please select an input audio device")
+                return
+            
+            # Extract device ID from the device string
+            device_id = int(input_device.split(':')[0])
+            
+            # Audio parameters
+            sample_rate = 44100
+            chunk_size = 1024
+            
+            def audio_callback(indata, frames, time, status):
+                """Audio callback for real-time processing."""
+                if status:
+                    print(f"Audio status: {status}")
+                
+                # Convert to numpy array and process
+                audio_data = indata[:, 0]  # Mono channel
+                
+                # Update GUI with audio data (in a thread-safe way)
+                self.root.after(0, lambda: self.update_audio_visualization(audio_data))
+            
+            # Start audio stream
+            self.audio_stream = sd.InputStream(
+                device=device_id,
+                channels=1,
+                samplerate=sample_rate,
+                blocksize=chunk_size,
+                callback=audio_callback,
+                dtype=np.float32
+            )
+            
+            self.audio_stream.start()
+            self.is_live_monitoring = True
+            
+            # Update UI
+            self.monitor_button.configure(text="⏹️ Stop Live Monitoring")
+            self.live_status_var.set("Live monitoring: ON - Playing guitar...")
+            self.update_status("Live monitoring started - play your guitar!")
+            
+        except Exception as e:
+            messagebox.showerror("Audio Error", f"Failed to start live monitoring:\n{e}")
+            self.update_status(f"Live monitoring error: {e}")
+    
+    def stop_live_monitoring(self):
+        """Stop live audio monitoring."""
+        try:
+            if self.audio_stream:
+                self.audio_stream.stop()
+                self.audio_stream.close()
+                self.audio_stream = None
+            
+            self.is_live_monitoring = False
+            
+            # Update UI
+            self.monitor_button.configure(text="🎤 Start Live Monitoring")
+            self.live_status_var.set("Live monitoring: OFF")
+            self.update_status("Live monitoring stopped")
+            
+        except Exception as e:
+            self.update_status(f"Error stopping live monitoring: {e}")
+    
+    def update_audio_visualization(self, audio_data):
+        """Update audio visualization with live data."""
+        try:
+            import numpy as np
+            
+            # Clear previous plots
+            self.ax1.clear()
+            self.ax2.clear()
+            
+            # Plot live audio data
+            time_axis = np.linspace(0, len(audio_data) / 44100, len(audio_data))
+            
+            self.ax1.plot(time_axis, audio_data, 'b-', linewidth=2)
+            self.ax1.set_title("Live Guitar Input", fontsize=36, fontweight='bold')
+            self.ax1.set_ylabel("Amplitude", fontsize=28)
+            self.ax1.set_ylim(-1, 1)
+            self.ax1.tick_params(labelsize=24)
+            
+            # Show processed audio (empty for now)
+            self.ax2.plot([0], [0], 'r-', linewidth=2)
+            self.ax2.set_title("Processed Audio (Magicstomp Output)", fontsize=36, fontweight='bold')
+            self.ax2.set_ylabel("Amplitude", fontsize=28)
+            self.ax2.set_xlabel("Time (s)", fontsize=28)
+            self.ax2.set_ylim(-1, 1)
+            self.ax2.tick_params(labelsize=24)
+            
+            # Refresh canvas
+            self.canvas.draw()
+            
+        except Exception as e:
+            print(f"Visualization error: {e}")
     
     def analyze_and_generate_patch(self):
         """Analyze target audio and generate patch."""
@@ -786,6 +950,15 @@ class MagicstompHILGUI:
                 self._recursive_configure_listbox(child)
         except:
             pass
+    
+    def on_closing(self):
+        """Handle application closing."""
+        try:
+            if self.is_live_monitoring:
+                self.stop_live_monitoring()
+            self.root.destroy()
+        except:
+            self.root.destroy()
     
     def run(self):
         """Run the GUI application."""
