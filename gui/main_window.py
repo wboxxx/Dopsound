@@ -42,11 +42,11 @@ class MagicstompHILGUI:
         """Initialize the main GUI application."""
         self.root = tk.Tk()
         self.root.title("🎸 Magicstomp HIL Tone Matcher")
-        self.root.geometry("1600x1000")
+        self.root.geometry("1400x900")
         self.root.configure(bg='#2c3e50')
         
         # Make window resizable
-        self.root.minsize(1400, 900)
+        self.root.minsize(1200, 800)
         
         # State variables
         self.target_file = None
@@ -71,56 +71,56 @@ class MagicstompHILGUI:
         # Configure modern theme
         style.theme_use('clam')
         
-        # Custom styles with larger fonts
+        # Custom styles with MUCH larger fonts for better visibility
         style.configure('Title.TLabel', 
-                       font=('Arial', 24, 'bold'),
+                       font=('Arial', 32, 'bold'),
                        foreground='#ecf0f1',
                        background='#2c3e50')
         
         style.configure('Section.TLabel',
-                       font=('Arial', 16, 'bold'),
+                       font=('Arial', 20, 'bold'),
                        foreground='#3498db',
                        background='#2c3e50')
         
         style.configure('Info.TLabel',
-                       font=('Arial', 12),
+                       font=('Arial', 16),
                        foreground='#bdc3c7',
                        background='#2c3e50')
         
         style.configure('Success.TLabel',
-                       font=('Arial', 12, 'bold'),
+                       font=('Arial', 16, 'bold'),
                        foreground='#27ae60',
                        background='#2c3e50')
         
         style.configure('Warning.TLabel',
-                       font=('Arial', 12, 'bold'),
+                       font=('Arial', 16, 'bold'),
                        foreground='#f39c12',
                        background='#2c3e50')
         
         style.configure('Error.TLabel',
-                       font=('Arial', 12, 'bold'),
+                       font=('Arial', 16, 'bold'),
                        foreground='#e74c3c',
                        background='#2c3e50')
         
-        # Configure button styles
+        # Configure button styles with larger fonts
         style.configure('TButton',
-                       font=('Arial', 12, 'bold'),
-                       padding=(10, 8))
+                       font=('Arial', 16, 'bold'),
+                       padding=(12, 10))
         
-        # Configure combobox styles
+        # Configure combobox styles with larger fonts
         style.configure('TCombobox',
-                       font=('Arial', 11),
-                       padding=(5, 5))
+                       font=('Arial', 14),
+                       padding=(8, 6))
         
-        # Configure entry styles
+        # Configure entry styles with larger fonts
         style.configure('TEntry',
-                       font=('Arial', 11),
-                       padding=(5, 5))
+                       font=('Arial', 14),
+                       padding=(8, 6))
         
-        # Configure large button styles
+        # Configure large button styles with even larger fonts
         style.configure('Large.TButton',
-                       font=('Arial', 14, 'bold'),
-                       padding=(15, 10))
+                       font=('Arial', 18, 'bold'),
+                       padding=(20, 12))
     
     def create_widgets(self):
         """Create all GUI widgets."""
@@ -273,17 +273,17 @@ class MagicstompHILGUI:
         viz_frame = ttk.Frame(self.monitor_frame)
         viz_frame.grid(row=1, column=0, columnspan=2, sticky='ew', pady=10)
         
-        # Create matplotlib figure for audio visualization (larger)
-        self.fig, (self.ax1, self.ax2) = plt.subplots(2, 1, figsize=(12, 8))
-        self.ax1.set_title("Target Audio", fontsize=16, fontweight='bold')
-        self.ax1.set_ylabel("Amplitude", fontsize=14)
-        self.ax2.set_title("Processed Audio", fontsize=16, fontweight='bold')
-        self.ax2.set_ylabel("Amplitude", fontsize=14)
-        self.ax2.set_xlabel("Time (s)", fontsize=14)
+        # Create matplotlib figure for audio visualization with large fonts
+        self.fig, (self.ax1, self.ax2) = plt.subplots(2, 1, figsize=(10, 6))
+        self.ax1.set_title("Target Audio", fontsize=20, fontweight='bold')
+        self.ax1.set_ylabel("Amplitude", fontsize=16)
+        self.ax2.set_title("Processed Audio", fontsize=20, fontweight='bold')
+        self.ax2.set_ylabel("Amplitude", fontsize=16)
+        self.ax2.set_xlabel("Time (s)", fontsize=16)
         
-        # Increase tick label sizes
-        self.ax1.tick_params(labelsize=12)
-        self.ax2.tick_params(labelsize=12)
+        # Increase tick label sizes significantly
+        self.ax1.tick_params(labelsize=14)
+        self.ax2.tick_params(labelsize=14)
         
         self.canvas = FigureCanvasTkAgg(self.fig, viz_frame)
         self.canvas.get_tk_widget().pack(fill='both', expand=True)

@@ -7,9 +7,9 @@
 python run_gui.py
 ```
 
-### Démarrage Taille Large (Recommandé)
+### Démarrage Grandes Polices (Recommandé)
 ```bash
-python run_gui_large.py
+python run_gui_large_fonts.py
 ```
 
 ### Démarrage Plein Écran
@@ -22,10 +22,17 @@ python run_gui_fullscreen.py
 python gui/main_window.py
 ```
 
-### Options de Taille
-- **Standard** : 1200x800 (compact)
-- **Large** : 1600x1000 (recommandé pour la lisibilité)
-- **Plein écran** : Taille écran complète (maximum de visibilité)
+### Options de Taille et Polices
+- **Standard** : 1200x800, polices normales
+- **Large Fonts** : 1400x900, **polices très grandes** (recommandé)
+- **Plein écran** : Taille écran complète, polices grandes
+
+### Tailles de Polices (Large Fonts)
+- **Titre principal** : 32px bold
+- **En-têtes de section** : 20px bold  
+- **Texte info** : 16px
+- **Boutons** : 16px-18px bold
+- **Graphiques** : 20px titres, 16px labels
 
 ## 🎯 Workflow Complet dans le GUI
 
