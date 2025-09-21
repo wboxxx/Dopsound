@@ -864,14 +864,26 @@ class MagicstompHILGUI:
                 if not isinstance(loaded_patch, dict):
                     raise ValueError("Invalid patch format: not a dictionary")
                 
-                if 'effects' not in loaded_patch:
-                    raise ValueError("Invalid patch format: missing 'effects' section")
+                # Check for valid patch structure - multiple formats supported:
+                # 1. New format (with amp/booster/delay/reverb/mod sections)
+                # 2. Legacy format (with effects section)  
+                # 3. Flat format (with individual parameters like gain, treble, delay_mix, etc.)
+                has_new_format = any(key in loaded_patch for key in ['amp', 'booster', 'delay', 'reverb', 'mod'])
+                has_legacy_format = 'effects' in loaded_patch
+                
+                # Check for flat format (individual parameters)
+                flat_params = ['gain', 'treble', 'presence', 'delay_mix', 'delay_feedback', 'delay_time_ms', 
+                              'reverb_mix', 'reverb_decay_s', 'mod_depth', 'mod_rate_hz', 'mod_mix']
+                has_flat_format = any(key in loaded_patch for key in flat_params)
+                
+                if not (has_new_format or has_legacy_format or has_flat_format):
+                    raise ValueError("Invalid patch format: missing required sections or parameters")
                 
                 # Set as current patch
                 self.current_patch = loaded_patch
                 
                 # Update patch display
-                self.display_patch_parameters()
+                self.display_patch()
                 
                 self.update_status(f"✅ Patch loaded from {Path(filename).name}")
                 print(f"✅ DEBUG: Patch loaded successfully: {loaded_patch}")

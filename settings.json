@@ -1,0 +1,23 @@
+{
+  "audio_devices": {
+    "input": "18: Line (6- Yamaha AG03MK2)",
+    "output": "4: Speakers (Realtek(R) Audio)"
+  },
+  "midi_device": {
+    "output_port": "2- Yamaha UB9-1 5"
+  },
+  "live_input": {
+    "enabled": true
+  },
+  "backend": {
+    "selected": "auto"
+  },
+  "optimization": {
+    "max_iterations": "20",
+    "session_name": "hil_session"
+  },
+  "files": {
+    "target_file": "C:/Users/Vincent B/Downloads/wwry.wav",
+    "di_file": null
+  }
+}
