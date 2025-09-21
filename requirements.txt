@@ -6,6 +6,10 @@ scipy>=1.10.0
 soundfile>=0.12.1
 click>=8.1.0
 
+# HIL (Hardware-in-the-Loop) dependencies
+sounddevice>=0.4.6  # Audio I/O for real-time processing
+pyaudio>=0.2.11     # Alternative audio I/O (optional)
+
 # Optional dependencies for enhanced features
 pedalboard>=0.7.4  # Audio processing (optional)
 

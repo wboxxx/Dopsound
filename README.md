@@ -4,12 +4,24 @@ Pipeline complet pour analyser des fichiers audio de guitare et générer automa
 
 ## 🚀 Fonctionnalités
 
-- **Analyse audio dual backend** : Essentia (C++ core) + librosa (pure Python) avec sélection runtime
+### Analyse audio dual backend
+- **Backend Essentia** : Haute performance, analyse C++ optimisée
+- **Backend Librosa** : Pure Python, installation simple
+- **Sélection runtime** : CLI, variable d'environnement, ou auto-détection
+- **Fallback automatique** : Graceful degradation si backend préféré indisponible
+
+### Hardware-in-the-Loop (HIL) Tone Matching
+- **Optimisation automatique** via Magicstomp réel
+- **Calibration audio** : latence + gain automatiques
+- **Loss perceptuel** : log-mel + MFCC pour comparaison authentique
+- **Coordinate search** : optimisation paramètre par paramètre
+- **Export complet** : JSON + SYX + WAV + rapport
+
+### Détection et mapping classiques
 - **Détection automatique des effets** : delay, reverb, chorus, phaser, distortion avec heuristiques explicites
 - **Mapping intelligent** : Conversion des caractéristiques audio vers paramètres Magicstomp
 - **Export flexible** : JSON neutre + SysEx Magicstomp + envoi direct USB-MIDI
 - **Interface CLI complète** : Pipeline automatisé avec sélection de backend
-- **Fallback automatique** : Essentia → librosa si dépendances manquantes
 
 ## 📋 Prérequis
 
@@ -83,6 +95,28 @@ python auto_tone_match_magicstomp.py guitar.wav --backend auto --send
 
 # Mode verbeux avec backend spécifique
 python auto_tone_match_magicstomp.py guitar.wav --backend essentia --verbose
+```
+
+### Hardware-in-the-Loop (HIL) Tone Matching
+
+```bash
+# Pipeline HIL complet (optimisation automatique)
+python cli/auto_match_hil.py target.wav --di-signal dry.wav \
+    --calibrate --optimize --send-patch --max-iterations 15
+
+# Calibration système seulement
+python cli/auto_match_hil.py --calibrate \
+    --in-device "Focusrite" --out-device "Focusrite"
+
+# Envoi patch seulement
+python cli/auto_match_hil.py target.wav --di-signal dry.wav \
+    --send-patch --patch-number 5
+
+# Liste des dispositifs audio
+python cli/auto_match_hil.py --list-devices
+
+# Démonstration (sans hardware)
+python demo_hil.py
 ```
 
 ### Sélection de backend
@@ -235,13 +269,26 @@ Dopsound/
 │   ├── librosa_backend.py        # Backend librosa (pure Python)
 │   ├── essentia_backend.py       # Backend essentia (C++ optimisé)
 │   └── factory.py                # Factory avec sélection runtime
+├── hil/                          # 🆕 Hardware-in-the-Loop
+│   ├── io.py                     # I/O audio temps réel + calibration
+│   └── __init__.py
+├── optimize/                     # 🆕 Optimisation HIL
+│   ├── loss.py                   # Loss perceptuel (log-mel + MFCC)
+│   ├── search.py                 # Coordinate/Grid search
+│   ├── constraints.py            # Contraintes paramètres
+│   └── __init__.py
+├── cli/
+│   ├── analyze2stomp.py         # Interface CLI legacy
+│   └── auto_match_hil.py        # 🆕 Orchestration HIL complète
 ├── analyze2json.py              # Pipeline legacy (librosa)
 ├── adapter_magicstomp.py        # JSON → SysEx Magicstomp
-├── cli/
-│   └── analyze2stomp.py         # Interface CLI legacy
 ├── tests/                        # 🆕 Tests des backends
+├── out/                          # 🆕 Sorties HIL (patches, WAV, rapports)
+├── demo_hil.py                   # 🆕 Démonstration HIL (sans hardware)
+├── demo_dual_backend.py          # 🆕 Démonstration système dual backend
 ├── requirements.txt             # Dépendances Python
-└── README.md                   # Documentation
+├── README.md                   # Documentation principale
+└── README_HIL.md               # 🆕 Documentation HIL détaillée
 ```
 
 ## 🐛 Debugging
