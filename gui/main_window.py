@@ -251,11 +251,31 @@ class MagicstompHILGUI:
         # Initially hide live monitoring controls
         self.live_monitor_frame.grid_remove()
         
+        # MIDI device selection
+        ttk.Label(self.file_frame, text="MIDI Device:", style='Section.TLabel').grid(row=2, column=0, sticky='w', pady=5)
+        
+        midi_frame = ttk.Frame(self.file_frame)
+        midi_frame.grid(row=3, column=1, columnspan=2, sticky='w', padx=10)
+        
+        ttk.Label(midi_frame, text="Output Port:").grid(row=0, column=0)
+        self.midi_port_var = tk.StringVar()
+        self.midi_port_combo = ttk.Combobox(midi_frame,
+                                           textvariable=self.midi_port_var,
+                                           width=35)
+        self.midi_port_combo.grid(row=0, column=1, padx=5)
+        
+        # Force large font for this specific combobox
+        self.midi_port_combo.bind('<Configure>', self._configure_combobox_font)
+        
+        ttk.Button(midi_frame,
+                  text="Refresh MIDI",
+                  command=self.refresh_midi_ports).grid(row=0, column=2, padx=5)
+        
         # Audio device selection
-        ttk.Label(self.file_frame, text="Audio Devices:", style='Section.TLabel').grid(row=2, column=0, sticky='w', pady=5)
+        ttk.Label(self.file_frame, text="Audio Devices:", style='Section.TLabel').grid(row=4, column=0, sticky='w', pady=5)
         
         device_frame = ttk.Frame(self.file_frame)
-        device_frame.grid(row=2, column=1, columnspan=2, sticky='w', padx=10)
+        device_frame.grid(row=5, column=1, columnspan=2, sticky='w', padx=10)
         
         ttk.Label(device_frame, text="Input:").grid(row=0, column=0)
         self.input_device_var = tk.StringVar()
@@ -488,6 +508,7 @@ class MagicstompHILGUI:
             self.hil_matcher = HILToneMatcher()
             self.audio_manager = AudioDeviceManager()
             self.refresh_audio_devices()
+            self.refresh_midi_ports()
             self.update_status("HIL system initialized successfully")
         except Exception as e:
             self.update_status(f"Error initializing HIL system: {e}")
@@ -745,9 +766,15 @@ class MagicstompHILGUI:
             print(f"🔍 DEBUG: SysEx data length: {len(syx_data)} bytes")
             print(f"🔍 DEBUG: SysEx header: {syx_data[:10]}...")
             
+            # Get selected MIDI port
+            selected_port = self.midi_port_var.get()
+            if not selected_port:
+                messagebox.showerror("Error", "Please select a MIDI output port first")
+                return
+            
             # Send to device
-            print("🔍 DEBUG: Sending to Magicstomp device...")
-            success = adapter.send_to_device(syx_data, port_name=None)
+            print(f"🔍 DEBUG: Sending to Magicstomp device via port: {selected_port}")
+            success = adapter.send_to_device(syx_data, port_name=selected_port)
             
             if success:
                 self.update_status("✅ Patch sent to Magicstomp successfully!")
@@ -773,6 +800,31 @@ class MagicstompHILGUI:
             self.update_status("MIDI ports listed in console")
         except Exception as e:
             error_msg = f"Error listing MIDI ports: {e}"
+            self.update_status(f"❌ {error_msg}")
+            print(f"❌ DEBUG: Exception: {e}")
+            messagebox.showerror("Error", error_msg)
+    
+    def refresh_midi_ports(self):
+        """Refresh MIDI port list in the dropdown."""
+        try:
+            import mido
+            
+            # Get all output ports
+            output_ports = mido.get_output_names()
+            print(f"🔍 DEBUG: Refreshing MIDI ports: {output_ports}")
+            
+            # Update combobox
+            self.midi_port_combo['values'] = output_ports
+            
+            # Auto-select first port if none selected
+            if not self.midi_port_var.get() and output_ports:
+                self.midi_port_var.set(output_ports[0])
+                print(f"🔍 DEBUG: Auto-selected first port: {output_ports[0]}")
+            
+            self.update_status(f"MIDI ports refreshed: {len(output_ports)} ports found")
+            
+        except Exception as e:
+            error_msg = f"Error refreshing MIDI ports: {e}"
             self.update_status(f"❌ {error_msg}")
             print(f"❌ DEBUG: Exception: {e}")
             messagebox.showerror("Error", error_msg)
