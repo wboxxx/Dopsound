@@ -88,3 +88,5 @@ connect(
         settings.setValue(QStringLiteral("RestoreMidiConnectionsAtStartUp"), checked);
     }
 );
+
+

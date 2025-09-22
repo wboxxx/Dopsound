@@ -259,3 +259,5 @@ const QMap<int, QString> ThreeBandParametricEQKnobParameters =
 };
 
 #endif // KNOBPARAMETERS_H
+
+

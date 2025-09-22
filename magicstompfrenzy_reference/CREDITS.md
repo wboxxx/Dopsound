@@ -98,3 +98,5 @@ Our `realtime_magicstomp.py` implementation is directly based on the MagicstompF
 Special thanks to **dulnikovsky (Robert Vetter)** for creating and maintaining MagicstompFrenzy, which provided the essential technical documentation and implementation details needed for our real-time parameter control system.
 
 Without this excellent reference implementation, our real-time Magicstomp control system would not have been possible.
+
+

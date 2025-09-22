@@ -1,0 +1,48 @@
+# Example SysEx Sniffer Output with Parameter Names
+# This file demonstrates what the enhanced SysEx sniffer would output during a typical session
+
+[2025-01-21 22:45:03] SYSEX OUT len=9  | PARAM: Delay Mix (offset=26, len=1)  F0 43 7D 40 55 42 20 00 1A F7
+[2025-01-21 22:45:04] SYSEX OUT len=9  | PARAM: Delay Mix (offset=26, len=1)  F0 43 7D 40 55 42 20 00 32 F7
+[2025-01-21 22:45:05] SYSEX OUT len=9  | PARAM: Delay Mix (offset=26, len=1)  F0 43 7D 40 55 42 20 00 4B F7
+[2025-01-21 22:45:06] SYSEX OUT len=9  | PARAM: Delay Mix (offset=26, len=1)  F0 43 7D 40 55 42 20 00 64 F7
+[2025-01-21 22:45:07] SYSEX OUT len=9  | PARAM: Delay Mix (offset=26, len=1)  F0 43 7D 40 55 42 20 00 7D F7
+[2025-01-21 22:45:08] SYSEX OUT len=9  | PARAM: Delay Mix (offset=26, len=1)  F0 43 7D 40 55 42 20 00 96 F7
+[2025-01-21 22:45:09] SYSEX OUT len=9  | PARAM: Delay Mix (offset=26, len=1)  F0 43 7D 40 55 42 20 00 AF F7
+[2025-01-21 22:45:10] SYSEX OUT len=9  | PARAM: Delay Mix (offset=26, len=1)  F0 43 7D 40 55 42 20 00 C8 F7
+[2025-01-21 22:45:11] SYSEX OUT len=9  | PARAM: Delay Mix (offset=26, len=1)  F0 43 7D 40 55 42 20 00 E1 F7
+[2025-01-21 22:45:12] SYSEX OUT len=9  | PARAM: Delay Mix (offset=26, len=1)  F0 43 7D 40 55 42 20 00 FA F7
+
+# Example of patch selection SysEx
+[2025-01-21 22:45:15] SYSEX OUT len=8  F0 43 7D 30 55 42 39 39 F7
+[2025-01-21 22:45:16] SYSEX OUT len=8  F0 43 7D 30 55 42 39 39 F7
+
+# Example of bulk patch data (truncated for readability)
+[2025-01-21 22:45:20] SYSEX OUT len=23  F0 43 7D 30 55 42 39 39 00 00 30 00 00 00 00 00 00 00 00 00 00 00 00 F7
+[2025-01-21 22:45:21] SYSEX OUT len=23  F0 43 7D 30 55 42 39 39 00 00 30 01 00 00 00 00 00 00 00 00 00 00 00 00 F7
+
+# Example of effect parameter change (Delay Mix 0 → 25 → 50 → 75 → 100)
+# These would be the actual SysEx messages sent when adjusting Delay Mix parameter
+[2025-01-21 22:45:25] SYSEX OUT len=9  | PARAM: Delay Mix (offset=26, len=1)  F0 43 7D 40 55 42 20 00 00 F7  # Delay Mix = 0
+[2025-01-21 22:45:26] SYSEX OUT len=9  | PARAM: Delay Mix (offset=26, len=1)  F0 43 7D 40 55 42 20 00 1A F7  # Delay Mix = 25
+[2025-01-21 22:45:27] SYSEX OUT len=9  | PARAM: Delay Mix (offset=26, len=1)  F0 43 7D 40 55 42 20 00 32 F7  # Delay Mix = 50
+[2025-01-21 22:45:28] SYSEX OUT len=9  | PARAM: Delay Mix (offset=26, len=1)  F0 43 7D 40 55 42 20 00 4B F7  # Delay Mix = 75
+[2025-01-21 22:45:29] SYSEX OUT len=9  | PARAM: Delay Mix (offset=26, len=1)  F0 43 7D 40 55 42 20 00 64 F7  # Delay Mix = 100
+
+# Example of reverb parameter change
+[2025-01-21 22:45:30] SYSEX OUT len=9  | PARAM: Reverb Level (offset=28, len=1)  F0 43 7D 40 55 42 20 00 0A F7  # Reverb Level = 10
+[2025-01-21 22:45:31] SYSEX OUT len=9  | PARAM: Reverb Level (offset=28, len=1)  F0 43 7D 40 55 42 20 00 1E F7  # Reverb Level = 30
+[2025-01-21 22:45:32] SYSEX OUT len=9  | PARAM: Reverb Level (offset=28, len=1)  F0 43 7D 40 55 42 20 00 32 F7  # Reverb Level = 50
+
+# Example of effect type change
+[2025-01-21 22:45:35] SYSEX OUT len=10 | PARAM: Effect Type (offset=1, len=1)  F0 43 7D 40 55 42 20 00 01 05 F7  # Effect Type = 5 (Delay)
+
+# Example of patch name change (single character)
+[2025-01-21 22:45:40] SYSEX OUT len=9  | PARAM: Patch Name (offset=0, len=1)  F0 43 7D 40 55 42 20 00 4D F7  # 'M' at position 0
+[2025-01-21 22:45:41] SYSEX OUT len=9  | PARAM: Patch Name (offset=1, len=1)  F0 43 7D 40 55 42 20 00 79 F7  # 'y' at position 1
+[2025-01-21 22:45:42] SYSEX OUT len=9  | PARAM: Patch Name (offset=2, len=1)  F0 43 7D 40 55 42 20 00 50 F7  # 'P' at position 2
+[2025-01-21 22:45:43] SYSEX OUT len=9  | PARAM: Patch Name (offset=3, len=1)  F0 43 7D 40 55 42 20 00 61 F7  # 'a' at position 3
+[2025-01-21 22:45:44] SYSEX OUT len=9  | PARAM: Patch Name (offset=4, len=1)  F0 43 7D 40 55 42 20 00 74 F7  # 't' at position 4
+[2025-01-21 22:45:45] SYSEX OUT len=9  | PARAM: Patch Name (offset=5, len=1)  F0 43 7D 40 55 42 20 00 63 F7  # 'c' at position 5
+[2025-01-21 22:45:46] SYSEX OUT len=9  | PARAM: Patch Name (offset=6, len=1)  F0 43 7D 40 55 42 20 00 68 F7  # 'h' at position 6
+[2025-01-21 22:45:47] SYSEX OUT len=9  | PARAM: Patch Name (offset=7, len=1)  F0 43 7D 40 55 42 20 00 20 F7  # ' ' at position 7
+[2025-01-21 22:45:48] SYSEX OUT len=9  | PARAM: Patch Name (offset=8, len=1)  F0 43 7D 40 55 42 20 00 31 F7  # '1' at position 8

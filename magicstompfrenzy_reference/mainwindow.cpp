@@ -162,3 +162,5 @@ void MainWindow::midiEvent(MidiEvent *ev)
         // Process incoming SysEx data...
     }
 }
+
+

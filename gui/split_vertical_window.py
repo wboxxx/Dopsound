@@ -1172,9 +1172,12 @@ class SplitVerticalGUI:
                     self.root.after(0, self.display_patch_parameters)
                     self.root.after(0, lambda: self.log_status("✅ Target analysis completed - patch generated"))
                     
-                    # Auto-generate patch proposal if effect is loaded
+                    # Auto-load effects from generated patch first
+                    self.root.after(50, self.auto_load_effects_from_patch)
+                    
+                    # Then auto-generate patch proposal if effect is loaded
                     if self.current_effect_widget:
-                        self.root.after(0, self.auto_generate_patch_proposal)
+                        self.root.after(100, self.auto_generate_patch_proposal)
                     
                 except Exception as e:
                     print(f"🔍 DEBUG: AutoToneMatcher error: {e}")
@@ -1235,9 +1238,12 @@ File: {Path(self.target_file).name}"""
                     # Generate basic patch from fallback analysis
                     self.root.after(0, self.generate_basic_patch_from_fallback)
                     
-                    # Auto-generate patch proposal if effect is loaded
+                    # Auto-load effects from generated patch first
+                    self.root.after(50, self.auto_load_effects_from_patch)
+                    
+                    # Then auto-generate patch proposal if effect is loaded
                     if self.current_effect_widget:
-                        self.root.after(0, self.auto_generate_patch_proposal)
+                        self.root.after(100, self.auto_generate_patch_proposal)
                 
             except Exception as e:
                 print(f"🔍 DEBUG: Fatal error in analyze_thread: {e}")
@@ -1982,6 +1988,7 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                 self.display_patch_parameters()
                 
                 # Try to identify and auto-load effects from patch
+                print(f"🔍 DEBUG: About to auto-load effects from patch: {self.current_patch}")
                 self.auto_load_effects_from_patch()
                 
                 # If effect is loaded, apply parameters
@@ -2052,31 +2059,81 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
             # Analyze patch to identify effects
             identified_effects = self.identify_effects_from_patch(self.current_patch)
             print(f"🔍 DEBUG: Identified effects: {identified_effects}")
+            self.log_status(f"🔍 Identified effects: {identified_effects}")
             
             if identified_effects:
-                # Try to load the first identified effect
-                effect_to_load = identified_effects[0]  # Load the first/most important effect
-                print(f"🔍 DEBUG: Auto-loading effect: {effect_to_load}")
+                # Load ALL identified effects to create a complete effect cascade
+                print(f"🔍 DEBUG: Loading effect cascade with {len(identified_effects)} effects")
+                self.log_status(f"🎛️ Loading effect cascade: {len(identified_effects)} effects")
                 
-                # Load the effect
-                success = self.load_effect_by_name(effect_to_load)
-                if success:
-                    self.log_status(f"🎛️ Auto-loaded effect: {effect_to_load}")
-                    print(f"🔍 DEBUG: Successfully auto-loaded effect: {effect_to_load}")
+                loaded_effects = []
+                for i, effect_name in enumerate(identified_effects):
+                    print(f"🔍 DEBUG: Auto-loading effect {i+1}/{len(identified_effects)}: {effect_name}")
+                    self.log_status(f"🎛️ Loading effect {i+1}/{len(identified_effects)}: {effect_name}")
                     
-                    # Auto-apply patch parameters to the loaded effect
+                    # Add the effect to the cascade (don't replace previous ones)
+                    success = self.add_effect_to_cascade(effect_name)
+                    print(f"🔍 DEBUG: add_effect_to_cascade returned: {success}")
+                    self.log_status(f"🔍 Add effect result: {success}")
+                    
+                    if success:
+                        loaded_effects.append(effect_name)
+                        self.log_status(f"✅ Loaded: {effect_name}")
+                        print(f"🔍 DEBUG: Successfully loaded effect: {effect_name}")
+                    else:
+                        print(f"🔍 DEBUG: Failed to load effect: {effect_name}")
+                        self.log_status(f"❌ Failed to load: {effect_name}")
+                
+                # Report cascade status
+                if loaded_effects:
+                    self.log_status(f"🎛️ Effect cascade loaded: {len(loaded_effects)}/{len(identified_effects)} effects")
+                    print(f"🔍 DEBUG: Effect cascade loaded: {loaded_effects}")
+                    
+                    # Auto-apply patch parameters to the last loaded effect (current active one)
+                    print(f"🔍 DEBUG: Checking auto-apply conditions:")
+                    print(f"🔍 DEBUG: - current_patch: {bool(self.current_patch)}")
+                    print(f"🔍 DEBUG: - current_effect_widget: {bool(self.current_effect_widget)}")
+                    print(f"🔍 DEBUG: - has set_all_parameters: {hasattr(self.current_effect_widget, 'set_all_parameters') if self.current_effect_widget else False}")
+                    
                     if self.current_patch and self.current_effect_widget and hasattr(self.current_effect_widget, 'set_all_parameters'):
+                        print(f"🔍 DEBUG: All conditions met, proceeding with auto-apply")
                         widget_params = self.convert_patch_to_widget_params(self.current_patch)
+                        print(f"🔍 DEBUG: Converted widget params: {widget_params}")
+                        
                         if widget_params:
-                            self.current_effect_widget.set_all_parameters(widget_params)
-                            self.current_parameters = widget_params
-                            self.target_parameters = widget_params.copy()
-                            
-                            # Update impact visualization
-                            self.root.after(100, self.update_impact_visualization)
-                            self.log_status("📊 Impact visualization updated automatically")
-                            self.log_status("🎛️ Patch parameters applied to auto-loaded effect")
-                            print(f"🔍 DEBUG: Auto-applied patch parameters: {widget_params}")
+                            print(f"🔍 DEBUG: Calling set_all_parameters with: {widget_params}")
+                            try:
+                                self.current_effect_widget.set_all_parameters(widget_params)
+                                print(f"🔍 DEBUG: set_all_parameters succeeded")
+                                
+                                self.current_parameters = widget_params
+                                self.target_parameters = widget_params.copy()
+                                
+                                # Update impact visualization
+                                print(f"🔍 DEBUG: Scheduling impact visualization update")
+                                self.root.after(100, self.update_impact_visualization)
+                                self.log_status("📊 Impact visualization updated automatically")
+                                self.log_status("🎛️ Patch parameters applied to auto-loaded effect")
+                                self.log_status("💡 Go to Effects tab to see the visual representation!")
+                                self.log_status("💡 Go to Analysis tab to see the parameter impacts!")
+                                print(f"🔍 DEBUG: Auto-applied patch parameters: {widget_params}")
+                                
+                                # Debug current state
+                                print(f"🔍 DEBUG: Current effect widget: {self.current_effect_widget}")
+                                print(f"🔍 DEBUG: Current effect type: {self.current_effect_type}")
+                                print(f"🔍 DEBUG: Current parameters: {self.current_parameters}")
+                                print(f"🔍 DEBUG: Target parameters: {self.target_parameters}")
+                            except Exception as e:
+                                print(f"🔍 DEBUG: Error calling set_all_parameters: {e}")
+                                import traceback
+                                traceback.print_exc()
+                        else:
+                            print(f"🔍 DEBUG: No widget params to apply")
+                    else:
+                        print(f"🔍 DEBUG: Cannot auto-apply - conditions not met")
+                        print(f"🔍 DEBUG: - current_effect_widget: {self.current_effect_widget}")
+                        print(f"🔍 DEBUG: - has set_all_parameters: {hasattr(self.current_effect_widget, 'set_all_parameters') if self.current_effect_widget else False}")
+                        self.log_status("⚠️ Effect loaded but cannot apply parameters")
                 else:
                     self.log_status(f"⚠️ Could not auto-load effect: {effect_to_load}")
                     print(f"🔍 DEBUG: Failed to auto-load effect: {effect_to_load}")
@@ -2102,22 +2159,22 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                 if isinstance(section_data, dict) and section_name != 'meta':
                     print(f"🔍 DEBUG: Analyzing section: {section_name}")
                     
-                    # Map section names to effect names
+                    # Map section names to real Magicstomp effect names
                     effect_mapping = {
-                        'compressor': 'Compressor',
-                        'eq': 'EQ',
-                        'delay': 'Mono Delay',
-                        'stereo_delay': 'Stereo Delay',
-                        'tape_echo': 'Tape Echo',
-                        'chorus': 'Chorus',
-                        'flanger': 'Flanger',
-                        'phaser': 'Phaser',
-                        'overdrive': 'Overdrive',
-                        'distortion': 'Distortion',
-                        'fuzz': 'Fuzz',
-                        'reverb': 'Reverb',
-                        'gate': 'Gate',
-                        'limiter': 'Limiter'
+                        'compressor': 'Compressor',  # Will map to available effect
+                        'eq': '3 Band EQ',          # Maps to ThreeBandEQWidget
+                        'delay': 'Mono Delay',      # Maps to MonoDelayWidget
+                        'stereo_delay': 'Stereo Delay',  # Maps to StereoDelayWidget
+                        'tape_echo': 'Echo',        # Maps to EchoWidget
+                        'chorus': 'Chorus',         # Maps to ChorusWidget
+                        'flanger': 'Flange',        # Maps to FlangeWidget
+                        'phaser': 'Phaser',         # Maps to PhaserWidget
+                        'overdrive': 'Amp Simulator',  # Maps to AmpSimulatorWidget
+                        'distortion': 'Distortion', # Maps to DistortionWidget
+                        'fuzz': 'Distortion',       # Maps to DistortionWidget
+                        'reverb': 'Reverb',         # Maps to ReverbWidget
+                        'gate': 'Gate Reverb',      # Maps to GateReverbWidget
+                        'limiter': 'Multi Filter'   # Maps to MultiFilterWidget
                     }
                     
                     if section_name in effect_mapping:
@@ -2133,27 +2190,92 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
             print(f"🔍 DEBUG: Error identifying effects: {e}")
             return []
     
+    def add_effect_to_cascade(self, effect_name):
+        """Add an effect widget to the cascade without replacing existing ones."""
+        print(f"🔍 DEBUG: Starting add_effect_to_cascade: {effect_name}")
+        
+        try:
+            # Map effect names to real Magicstomp effect types (from effect_registry.py)
+            effect_type_mapping = {
+                '3 Band EQ': 0x21,        # ThreeBandEQWidget
+                'Mono Delay': 0x0D,       # MonoDelayWidget
+                'Stereo Delay': 0x0E,     # StereoDelayWidget
+                'Echo': 0x11,             # EchoWidget
+                'Chorus': 0x12,           # ChorusWidget
+                'Flange': 0x13,           # FlangeWidget
+                'Phaser': 0x15,           # PhaserWidget
+                'Amp Simulator': 0x08,    # AmpSimulatorWidget
+                'Distortion': 0x2F,       # DistortionWidget
+                'Reverb': 0x09,           # ReverbWidget
+                'Gate Reverb': 0x0B,      # GateReverbWidget
+                'Multi Filter': 0x2D,     # MultiFilterWidget
+                'Dynamic Filter': 0x1E,   # DynamicFilterWidget
+                'Mod. Delay': 0x0F,       # ModDelayWidget
+                'Compressor': 0x2D,       # Use Multi Filter as substitute
+            }
+            
+            # Check if effect is available
+            if effect_name not in effect_type_mapping:
+                print(f"🔍 DEBUG: Effect {effect_name} not available in mapping")
+                return False
+            
+            effect_type = effect_type_mapping[effect_name]
+            
+            # Special handling for Compressor (use Multi Filter as substitute)
+            if effect_name == 'Compressor':
+                print(f"🔍 DEBUG: {effect_name} not available, using Multi Filter as substitute")
+                effect_name = 'Multi Filter'
+                effect_type = 0x2D
+            
+            print(f"🔍 DEBUG: Starting load_effect_widget_by_type: {effect_type}")
+            
+            # Load the effect widget
+            success = self.load_effect_widget_by_type(effect_type)
+            
+            if success:
+                print(f"🔍 DEBUG: Successfully added {effect_name} to cascade")
+                # Update current effect to the last loaded one
+                self.current_effect_widget = self.get_last_effect_widget()
+                return True
+            else:
+                print(f"🔍 DEBUG: Failed to add {effect_name} to cascade")
+                return False
+                
+        except Exception as e:
+            print(f"🔍 DEBUG: Error adding effect to cascade: {e}")
+            return False
+    
+    def get_last_effect_widget(self):
+        """Get the last (most recently added) effect widget from the scrollable frame."""
+        children = self.params_scrollable_frame.winfo_children()
+        effect_widgets = [child for child in children if hasattr(child, 'set_all_parameters')]
+        return effect_widgets[-1] if effect_widgets else None
+    
     def load_effect_by_name(self, effect_name):
         """Load an effect by name."""
         print(f"🔍 DEBUG: Starting load_effect_by_name: {effect_name}")
         
         try:
-            # Map effect names to effect types
+            # Map effect names to real Magicstomp effect types (from effect_registry.py)
             effect_type_mapping = {
-                'Compressor': 0x01,
-                'EQ': 0x02,
-                'Mono Delay': 0x0D,
-                'Stereo Delay': 0x0E,
-                'Tape Echo': 0x0F,
-                'Chorus': 0x03,
-                'Flanger': 0x04,
-                'Phaser': 0x05,
-                'Overdrive': 0x06,
-                'Distortion': 0x07,
-                'Fuzz': 0x08,
-                'Reverb': 0x09,
-                'Gate': 0x0A,
-                'Limiter': 0x0B
+                '3 Band EQ': 0x21,        # ThreeBandEQWidget
+                'Mono Delay': 0x0D,       # MonoDelayWidget
+                'Stereo Delay': 0x0E,     # StereoDelayWidget
+                'Echo': 0x11,             # EchoWidget
+                'Chorus': 0x12,           # ChorusWidget
+                'Flange': 0x13,           # FlangeWidget
+                'Phaser': 0x15,           # PhaserWidget
+                'Amp Simulator': 0x08,    # AmpSimulatorWidget
+                'Distortion': 0x2F,       # DistortionWidget
+                'Reverb': 0x09,           # ReverbWidget
+                'Gate Reverb': 0x0B,      # GateReverbWidget
+                'Multi Filter': 0x2D,     # MultiFilterWidget
+                'Dynamic Filter': 0x1E,   # DynamicFilterWidget
+                'Mod. Delay': 0x0F,       # ModDelayWidget
+                'Tremolo': 0x17,          # TremoloWidget
+                'Spring Reverb': 0x22,    # SpringReverbWidget
+                'HQ Pitch': 0x18,         # HQPitchWidget
+                'Dual Pitch': 0x19        # DualPitchWidget
             }
             
             if effect_name in effect_type_mapping:
@@ -2167,6 +2289,17 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                     return True
                 else:
                     print(f"🔍 DEBUG: Failed to load effect widget for {effect_name}")
+                    return False
+            elif effect_name == 'Compressor':
+                # Fallback: Use Multi Filter as compressor substitute
+                print(f"🔍 DEBUG: Compressor not available, using Multi Filter as substitute")
+                effect_type = 0x2D  # MultiFilterWidget
+                success = self.load_effect_widget_by_type(effect_type)
+                if success:
+                    print(f"🔍 DEBUG: Successfully loaded Multi Filter as compressor substitute")
+                    return True
+                else:
+                    print(f"🔍 DEBUG: Failed to load Multi Filter substitute")
                     return False
             else:
                 print(f"🔍 DEBUG: Unknown effect name: {effect_name}")
@@ -2183,26 +2316,79 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
         print(f"🔍 DEBUG: Starting load_effect_widget_by_type: {effect_type}")
         
         try:
-            # Get effect widget from registry
-            if hasattr(self, 'effect_registry'):
-                effect_class = self.effect_registry.get_effect_class(effect_type)
-                if effect_class:
-                    # Create and load the effect widget
-                    self.current_effect_widget = effect_class(self.effects_frame)
-                    self.current_effect_type = effect_type
-                    
-                    # Update UI
-                    if hasattr(self, 'current_effect_var'):
-                        effect_name = self.effect_registry.get_effect_name(effect_type)
-                        self.current_effect_var.set(f"Loaded: {effect_name}")
-                    
-                    print(f"🔍 DEBUG: Successfully loaded effect widget type {effect_type}")
-                    return True
+            # Get effect widget from registry (using static class)
+            print(f"🔍 DEBUG: Using EffectRegistry static class")
+            effect_class = EffectRegistry.create_effect_widget(effect_type, None)
+            print(f"🔍 DEBUG: Effect class for type {effect_type}: {effect_class}")
+            
+            if effect_class:
+                # Create and load the effect widget
+                print(f"🔍 DEBUG: Creating effect widget with parent: {self.params_scrollable_frame}")
+                effect_widget = EffectRegistry.create_effect_widget(effect_type, self.params_scrollable_frame)
+                self.current_effect_type = effect_type
+                
+                # Debug widget properties
+                print(f"🔍 DEBUG: Widget created: {effect_widget}")
+                print(f"🔍 DEBUG: Widget type: {type(effect_widget)}")
+                
+                # Pack the widget in the scrollable frame
+                print(f"🔍 DEBUG: Packing widget in scrollable frame")
+                effect_widget.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+                print(f"🔍 DEBUG: Widget packed successfully")
+                
+                # Force widget to update and show
+                print(f"🔍 DEBUG: Forcing widget update")
+                effect_widget.update_idletasks()
+                effect_widget.update()
+                print(f"🔍 DEBUG: Widget update completed")
+                
+                # Force grid layout update
+                print(f"🔍 DEBUG: Forcing grid layout update")
+                effect_widget.grid_rowconfigure(0, weight=1)
+                effect_widget.grid_columnconfigure(0, weight=1)
+                effect_widget.grid_propagate(True)
+                print(f"🔍 DEBUG: Grid layout update completed")
+                print(f"🔍 DEBUG: Widget methods: {dir(effect_widget)}")
+                
+                # Check if widget has required methods
+                if hasattr(effect_widget, 'set_all_parameters'):
+                    print(f"🔍 DEBUG: Widget has set_all_parameters method")
                 else:
-                    print(f"🔍 DEBUG: Effect class not found for type {effect_type}")
-                    return False
+                    print(f"🔍 DEBUG: Widget MISSING set_all_parameters method")
+                
+                if hasattr(effect_widget, 'get_all_parameters'):
+                    print(f"🔍 DEBUG: Widget has get_all_parameters method")
+                else:
+                    print(f"🔍 DEBUG: Widget MISSING get_all_parameters method")
+                
+                # Update UI
+                if hasattr(self, 'current_effect_var'):
+                    effect_name = EffectRegistry.get_effect_name(effect_type)
+                    self.current_effect_var.set(f"Loaded: {effect_name}")
+                    print(f"🔍 DEBUG: Updated current_effect_var to: Loaded: {effect_name}")
+                else:
+                    print(f"🔍 DEBUG: No current_effect_var found")
+                
+                # Check effects frame
+                print(f"🔍 DEBUG: Effects frame: {self.effects_frame}")
+                print(f"🔍 DEBUG: Params scrollable frame: {self.params_scrollable_frame}")
+                print(f"🔍 DEBUG: Params scrollable frame children: {self.params_scrollable_frame.winfo_children()}")
+                
+                # Check if widget is visible
+                if effect_widget:
+                    print(f"🔍 DEBUG: Widget visible: {effect_widget.winfo_viewable()}")
+                    print(f"🔍 DEBUG: Widget mapped: {effect_widget.winfo_ismapped()}")
+                    print(f"🔍 DEBUG: Widget geometry: {effect_widget.winfo_geometry()}")
+                    print(f"🔍 DEBUG: Widget size: {effect_widget.winfo_reqwidth()}x{effect_widget.winfo_reqheight()}")
+                    print(f"🔍 DEBUG: Widget children: {effect_widget.winfo_children()}")
+                    print(f"🔍 DEBUG: Widget children count: {len(effect_widget.winfo_children())}")
+                
+                print(f"🔍 DEBUG: Successfully loaded effect widget type {effect_type}")
+                print(f"🔍 DEBUG: Created effect widget: {effect_widget}")
+                return True
             else:
-                print("🔍 DEBUG: Effect registry not available")
+                print(f"🔍 DEBUG: Effect class not found for type {effect_type}")
+                print(f"🔍 DEBUG: Available effects in registry: {list(EffectRegistry.EFFECT_WIDGETS.keys())}")
                 return False
                 
         except Exception as e:

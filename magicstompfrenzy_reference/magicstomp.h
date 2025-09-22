@@ -110,3 +110,5 @@ enum EffectTypeId
 };
 
 #endif // MAGICSTOMP_H
+
+

@@ -35,3 +35,5 @@ Our `realtime_magicstomp.py` implementation is based on the SysEx format and che
 ## License Compliance
 
 These files are included for reference and debugging purposes only. The original GPL-3.0 license applies to the MagicstompFrenzy repository.
+
+
