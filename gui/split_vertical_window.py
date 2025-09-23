@@ -307,24 +307,44 @@ class SplitVerticalGUI:
     def restore_application_state(self):
         """Restore application state from saved settings."""
         try:
+            print("🔍 DEBUG: Starting restore_application_state()")
+            print(f"🔍 DEBUG: last_active_tab = {getattr(self, 'last_active_tab', 'NOT SET')}")
+            print(f"🔍 DEBUG: last_loaded_patch = {getattr(self, 'last_loaded_patch', 'NOT SET')}")
+            
             # Restore active tab
             if hasattr(self, 'last_active_tab') and hasattr(self, 'notebook'):
+                print(f"🔍 DEBUG: Attempting to restore tab {self.last_active_tab}")
                 if 0 <= self.last_active_tab < self.notebook.index('end'):
                     self.notebook.select(self.last_active_tab)
                     self.log_status(f"🔄 Restored tab {self.last_active_tab}")
+                    print(f"🔍 DEBUG: Successfully restored tab {self.last_active_tab}")
+                else:
+                    print(f"🔍 DEBUG: Tab index {self.last_active_tab} out of range (0-{self.notebook.index('end')-1})")
+            else:
+                print("🔍 DEBUG: No last_active_tab or notebook available")
             
             # Restore loaded patch
             if hasattr(self, 'last_loaded_patch') and self.last_loaded_patch:
+                print(f"🔍 DEBUG: Restoring patch: {self.last_loaded_patch.get('meta', {}).get('name', 'Unknown')}")
                 self.current_patch = self.last_loaded_patch
                 self.log_status(f"🔄 Restored patch: {self.last_loaded_patch.get('meta', {}).get('name', 'Unknown')}")
                 
                 # Auto-apply the restored patch
                 if hasattr(self, 'auto_apply_patch') and self.auto_apply_patch:
+                    print("🔍 DEBUG: Auto-applying restored patch to widgets")
                     self.auto_apply_patch_to_widgets()
+                else:
+                    print("🔍 DEBUG: Auto-apply disabled or not available")
+            else:
+                print("🔍 DEBUG: No patch to restore")
+                
+            print("🔍 DEBUG: restore_application_state() completed")
                     
         except Exception as e:
             self.log_status(f"⚠️ Error restoring application state: {e}")
             print(f"🔍 DEBUG: Error restoring state: {e}")
+            import traceback
+            print(f"🔍 DEBUG: Traceback: {traceback.format_exc()}")
     
     def on_tab_changed(self, event=None):
         """Handle tab change event - save current state."""
@@ -338,6 +358,12 @@ class SplitVerticalGUI:
     def save_settings(self):
         """Save current settings to file."""
         try:
+            # Debug current state before saving
+            print(f"🔍 DEBUG: Saving settings - current_patch exists: {hasattr(self, 'current_patch')}")
+            if hasattr(self, 'current_patch'):
+                print(f"🔍 DEBUG: current_patch value: {self.current_patch}")
+            print(f"🔍 DEBUG: last_active_tab will be: {self.get_current_tab_index()}")
+            
             settings = {
                 # Audio settings
                 'audio_input_device': self.audio_input_var.get() if hasattr(self, 'audio_input_var') else '',
