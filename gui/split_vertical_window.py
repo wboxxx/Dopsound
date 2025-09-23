@@ -657,7 +657,7 @@ class SplitVerticalGUI:
         self.monitor_btn.pack(pady=10)
         
         # Optimization controls
-        opt_frame = ttk.LabelFrame(self.monitoring_frame, text="Optimization", padding=10)
+        opt_frame = ttk.LabelFrame(self.live_comparison_frame, text="Optimization", padding=10)
         opt_frame.pack(fill=tk.X, padx=10, pady=5)
         
         self.optimize_btn = ttk.Button(opt_frame, text="🔄 Start Optimization", 
@@ -666,7 +666,7 @@ class SplitVerticalGUI:
         self.optimize_btn.pack(pady=10)
         
         # Quick actions
-        actions_frame = ttk.LabelFrame(self.monitoring_frame, text="Quick Actions", padding=10)
+        actions_frame = ttk.LabelFrame(self.live_comparison_frame, text="Quick Actions", padding=10)
         actions_frame.pack(fill=tk.X, padx=10, pady=5)
         
         quick_analyze_btn = ttk.Button(actions_frame, text="Quick Analyze", 
