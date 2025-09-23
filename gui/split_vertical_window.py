@@ -671,6 +671,16 @@ class SplitVerticalGUI:
         send_patch_btn = ttk.Button(patch_buttons_frame, text="📤 Send to Magicstomp", 
                                    command=self.send_patch_to_magicstomp)
         send_patch_btn.pack(side=tk.LEFT)
+        
+        # Test button for real-time parameter tweaking
+        test_param_btn = ttk.Button(patch_buttons_frame, text="🧪 Test Parameter", 
+                                   command=self.test_realtime_parameter)
+        test_param_btn.pack(side=tk.LEFT, padx=(5, 0))
+        
+        # Advanced test button
+        test_advanced_btn = ttk.Button(patch_buttons_frame, text="🔬 Test Advanced", 
+                                      command=self.test_advanced_parameters)
+        test_advanced_btn.pack(side=tk.LEFT, padx=(5, 0))
     
     def create_patch_builder_tab(self):
         """Create patch builder tab - break down patch into Magicstomp widgets, visual parameter adjustment."""
@@ -3104,6 +3114,89 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
             print(f"🔍 DEBUG: Error sending patch: {e}")
             import traceback
             traceback.print_exc()
+    
+    def test_realtime_parameter(self):
+        """Test simple de modification temps réel d'un paramètre."""
+        print("🧪 Test de paramètre temps réel")
+        
+        if not hasattr(self, 'realtime_magicstomp') or not self.realtime_magicstomp.output_port:
+            self.log_status("❌ Pas de connexion MIDI temps réel")
+            print("❌ RealtimeMagicstomp non connecté")
+            return
+        
+        try:
+            # Test simple : modifier le Delay Level (DLVL) - offset 67
+            # Alterne entre deux valeurs pour voir un changement visible
+            import time
+            
+            # Valeur initiale
+            test_value_1 = 50
+            test_value_2 = 80
+            
+            self.log_status(f"🧪 Test paramètre DLVL: {test_value_1} → {test_value_2}")
+            print(f"🧪 Test DLVL (offset 67): {test_value_1} → {test_value_2}")
+            
+            # Envoie la première valeur
+            self.realtime_magicstomp.tweak_parameter(67, test_value_1, immediate=True)
+            print(f"📤 Envoyé DLVL = {test_value_1}")
+            self.log_status(f"📤 Envoyé DLVL = {test_value_1}")
+            
+            # Attend 1 seconde
+            time.sleep(1)
+            
+            # Envoie la deuxième valeur
+            self.realtime_magicstomp.tweak_parameter(67, test_value_2, immediate=True)
+            print(f"📤 Envoyé DLVL = {test_value_2}")
+            self.log_status(f"📤 Envoyé DLVL = {test_value_2}")
+            
+            self.log_status("✅ Test paramètre terminé - vérifiez l'écran du Magicstomp")
+            print("✅ Test terminé - vérifiez l'écran du Magicstomp")
+            
+        except Exception as e:
+            self.log_status(f"❌ Erreur test paramètre: {e}")
+            print(f"❌ Erreur test paramètre: {e}")
+    
+    def test_advanced_parameters(self):
+        """Test avancé de plusieurs paramètres connus."""
+        print("🔬 Test avancé de paramètres")
+        
+        if not hasattr(self, 'realtime_magicstomp') or not self.realtime_magicstomp.output_port:
+            self.log_status("❌ Pas de connexion MIDI temps réel")
+            print("❌ RealtimeMagicstomp non connecté")
+            return
+        
+        try:
+            import time
+            
+            # Paramètres testés précédemment qui fonctionnaient
+            test_params = [
+                (67, "DLVL (Delay Level)", [30, 60, 90]),
+                (71, "DHPF (Delay High Pass Filter)", [20, 50, 80]),
+                (53, "Flanger Depth", [10, 40, 70]),
+                (54, "Flanger Feedback", [25, 55, 85]),
+            ]
+            
+            self.log_status("🔬 Test avancé - plusieurs paramètres")
+            print("🔬 Test avancé de paramètres")
+            
+            for offset, name, values in test_params:
+                self.log_status(f"🧪 Test {name} (offset {offset})")
+                print(f"🧪 Test {name} (offset {offset})")
+                
+                for value in values:
+                    self.realtime_magicstomp.tweak_parameter(offset, value, immediate=True)
+                    print(f"📤 {name} = {value}")
+                    self.log_status(f"📤 {name} = {value}")
+                    time.sleep(0.8)  # Pause pour voir les changements
+                
+                time.sleep(1)  # Pause entre les paramètres
+            
+            self.log_status("✅ Test avancé terminé - vérifiez l'écran du Magicstomp")
+            print("✅ Test avancé terminé - vérifiez l'écran du Magicstomp")
+            
+        except Exception as e:
+            self.log_status(f"❌ Erreur test avancé: {e}")
+            print(f"❌ Erreur test avancé: {e}")
     
     def refresh_audio_devices(self):
         """Refresh audio device list."""

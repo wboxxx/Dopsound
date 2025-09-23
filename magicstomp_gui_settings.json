@@ -1,11 +1,11 @@
 {
-  "audio_input_device": "",
-  "audio_output_device": "",
+  "audio_input_device": "Microsoft Sound Mapper - Input (ID: 0)",
+  "audio_output_device": "Microsoft Sound Mapper - Output (ID: 4)",
   "sample_rate": 44100,
   "buffer_size": 1024,
   "audio_channels": 2,
-  "midi_input_device": "Carla2Reaper 0",
-  "midi_output_device": "Microsoft GS Wavetable Synth 0",
+  "midi_input_device": "Yamaha UB9-1 2",
+  "midi_output_device": "Yamaha UB9-1 3",
   "midi_channels": [
     1
   ],
