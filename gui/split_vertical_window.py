@@ -2152,6 +2152,46 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
             import traceback
             traceback.print_exc()
     
+    def get_widget_specific_params(self, widget_type, all_params):
+        """Retourne les paramètres spécifiques à un type de widget."""
+        specific_params = {}
+        
+        if widget_type == "CompressorWidget":
+            # Paramètres du compresseur (selon le CSV)
+            compressor_keys = ['threshold', 'ratio', 'attack', 'release', 'slope', 'low_gain', 'mid_gain', 'high_gain', 'lookup', 'ceiling']
+            specific_params = {k: all_params[k] for k in compressor_keys if k in all_params}
+            
+        elif widget_type == "ThreeBandEQWidget":
+            # Paramètres de l'EQ 3 bandes
+            eq_keys = ['eq1_gain', 'eq1_freq', 'eq1_q', 'eq2_gain', 'eq2_freq', 'eq2_q', 'eq3_gain', 'eq3_freq', 'eq3_q']
+            specific_params = {k: all_params[k] for k in eq_keys if k in all_params}
+            
+        elif widget_type == "MonoDelayWidget":
+            # Paramètres du delay mono
+            delay_keys = ['time', 'feedback', 'mix', 'low_cut', 'high_cut', 'high_ratio']
+            specific_params = {k: all_params[k] for k in delay_keys if k in all_params}
+            
+        elif widget_type == "StereoDelayWidget":
+            # Paramètres du delay stéréo
+            delay_keys = ['time', 'feedback', 'mix', 'low_cut', 'high_cut', 'high_ratio']
+            specific_params = {k: all_params[k] for k in delay_keys if k in all_params}
+            
+        elif widget_type == "ModDelayWidget":
+            # Paramètres du delay modulé
+            delay_keys = ['time', 'feedback', 'mix', 'low_cut', 'high_cut', 'high_ratio', 'wave', 'freq']
+            specific_params = {k: all_params[k] for k in delay_keys if k in all_params}
+            
+        elif widget_type == "EchoWidget":
+            # Paramètres de l'echo
+            echo_keys = ['time', 'feedback', 'mix', 'low_cut', 'high_cut', 'high_ratio']
+            specific_params = {k: all_params[k] for k in echo_keys if k in all_params}
+            
+        # Pour les autres widgets, utiliser tous les paramètres
+        else:
+            specific_params = all_params.copy()
+        
+        return specific_params
+    
     def convert_patch_to_widget_params(self, patch):
         """Convert patch format to widget parameters format."""
         print("🔍 DEBUG: Starting convert_patch_to_widget_params()")
@@ -2175,8 +2215,13 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                             widget_params['attack'] = section_data['attack']
                         if 'release' in section_data:
                             widget_params['release'] = section_data['release']
-                        if 'makeup_gain' in section_data:
-                            widget_params['makeup_gain'] = section_data['makeup_gain']
+                        # Paramètres par défaut pour le compresseur
+                        widget_params['slope'] = 0  # -6 dB par défaut
+                        widget_params['low_gain'] = 0.0
+                        widget_params['mid_gain'] = 0.0
+                        widget_params['high_gain'] = 0.0
+                        widget_params['lookup'] = 0.0
+                        widget_params['ceiling'] = 0.0
                     
                     elif section_name == 'eq':
                         # Map EQ parameters to widget format
@@ -2209,6 +2254,8 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                             widget_params['low_cut'] = section_data['low_cut']
                         if 'high_cut' in section_data:
                             widget_params['high_cut'] = section_data['high_cut']
+                        # Paramètres par défaut pour le delay
+                        widget_params['high_ratio'] = 0.0
             
             print(f"🔍 DEBUG: Final converted widget params: {widget_params}")
             return widget_params
@@ -2267,38 +2314,50 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                     print(f"🔍 DEBUG: - current_effect_widget: {bool(self.current_effect_widget)}")
                     print(f"🔍 DEBUG: - has set_all_parameters: {hasattr(self.current_effect_widget, 'set_all_parameters') if self.current_effect_widget else False}")
                     
-                    if self.current_patch and self.current_effect_widget and hasattr(self.current_effect_widget, 'set_all_parameters'):
+                    if self.current_patch and self.effect_widget_cascade:
                         print(f"🔍 DEBUG: All conditions met, proceeding with auto-apply")
                         widget_params = self.convert_patch_to_widget_params(self.current_patch)
                         print(f"🔍 DEBUG: Converted widget params: {widget_params}")
                         
                         if widget_params:
-                            print(f"🔍 DEBUG: Calling set_all_parameters with: {widget_params}")
-                            try:
-                                self.current_effect_widget.set_all_parameters(widget_params)
-                                print(f"🔍 DEBUG: set_all_parameters succeeded")
-                                
-                                self.current_parameters = widget_params
-                                self.target_parameters = widget_params.copy()
-                                
-                                # Update impact visualization
-                                print(f"🔍 DEBUG: Scheduling impact visualization update")
-                                self.root.after(100, self.update_impact_visualization)
-                                self.log_status("📊 Impact visualization updated automatically")
-                                self.log_status("🎛️ Patch parameters applied to auto-loaded effect")
-                                self.log_status("💡 Go to Effects tab to see the visual representation!")
-                                self.log_status("💡 Go to Analysis tab to see the parameter impacts!")
-                                print(f"🔍 DEBUG: Auto-applied patch parameters: {widget_params}")
-                                
-                                # Debug current state
-                                print(f"🔍 DEBUG: Current effect widget: {self.current_effect_widget}")
-                                print(f"🔍 DEBUG: Current effect type: {self.current_effect_type}")
-                                print(f"🔍 DEBUG: Current parameters: {self.current_parameters}")
-                                print(f"🔍 DEBUG: Target parameters: {self.target_parameters}")
-                            except Exception as e:
-                                print(f"🔍 DEBUG: Error calling set_all_parameters: {e}")
-                                import traceback
-                                traceback.print_exc()
+                            # Appliquer les paramètres à tous les widgets de la cascade
+                            print(f"🔍 DEBUG: Applying parameters to all widgets in cascade")
+                            for i, effect_widget in enumerate(self.effect_widget_cascade):
+                                try:
+                                    widget_type = type(effect_widget).__name__
+                                    print(f"🔍 DEBUG: Applying to widget {i}: {widget_type}")
+                                    
+                                    # Obtenir les paramètres spécifiques à ce widget
+                                    specific_params = self.get_widget_specific_params(widget_type, widget_params)
+                                    print(f"🔍 DEBUG: Specific params for {widget_type}: {specific_params}")
+                                    
+                                    if specific_params:
+                                        effect_widget.set_all_parameters(specific_params)
+                                        print(f"🔍 DEBUG: set_all_parameters succeeded for widget {i}")
+                                    else:
+                                        print(f"🔍 DEBUG: No specific params for {widget_type}")
+                                        
+                                except Exception as e:
+                                    print(f"🔍 DEBUG: Error applying to widget {i}: {e}")
+                            
+                            # Mettre à jour les paramètres actuels et cibles
+                            self.current_parameters = widget_params
+                            self.target_parameters = widget_params.copy()
+                            
+                            # Update impact visualization
+                            print(f"🔍 DEBUG: Scheduling impact visualization update")
+                            self.root.after(100, self.update_impact_visualization)
+                            self.log_status("📊 Impact visualization updated automatically")
+                            self.log_status("🎛️ Patch parameters applied to all auto-loaded effects")
+                            self.log_status("💡 Go to Effects tab to see the visual representation!")
+                            self.log_status("💡 Go to Analysis tab to see the parameter impacts!")
+                            print(f"🔍 DEBUG: Auto-applied patch parameters: {widget_params}")
+                            
+                            # Debug current state
+                            print(f"🔍 DEBUG: Current effect widget: {self.current_effect_widget}")
+                            print(f"🔍 DEBUG: Current effect type: {self.current_effect_type}")
+                            print(f"🔍 DEBUG: Current parameters: {self.current_parameters}")
+                            print(f"🔍 DEBUG: Target parameters: {self.target_parameters}")
                         else:
                             print(f"🔍 DEBUG: No widget params to apply")
                     else:
