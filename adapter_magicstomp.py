@@ -530,6 +530,7 @@ class MagicstompAdapter:
                 print("🔍 DEBUG: Using existing MIDI port")
                 port = existing_port
             else:
+                print("🔍 DEBUG: No existing port provided, will try to open new one")
                 # Trouve le port de sortie
                 all_output_ports = mido.get_output_names()
                 print(f"🔍 DEBUG: All available output ports: {all_output_ports}")
@@ -555,7 +556,16 @@ class MagicstompAdapter:
 
                 # Envoie le message SysEx
                 print("🔍 DEBUG: Opening MIDI port...")
-                port = mido.open_output(selected_port)
+                try:
+                    port = mido.open_output(selected_port)
+                except SystemError as e:
+                    if "already open" in str(e).lower() or "error creating" in str(e).lower():
+                        print(f"⚠️ Port MIDI déjà ouvert: {e}")
+                        print("💡 CONSEIL: Le port est déjà utilisé par une autre application")
+                        print("💡 CONSEIL: Essayez de fermer d'autres applications MIDI")
+                        return False
+                    else:
+                        raise
 
             print("🔍 DEBUG: Port opened successfully")
             

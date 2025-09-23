@@ -2992,9 +2992,15 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
             # Send to device using existing port if available
             print(f"🔍 DEBUG: Sending to MIDI port: {midi_output}")
             existing_port = None
-            if hasattr(self, 'realtime_magicstomp') and self.realtime_magicstomp.output_port:
-                existing_port = self.realtime_magicstomp.output_port
-                print("🔍 DEBUG: Using existing RealtimeMagicstomp port")
+            if hasattr(self, 'realtime_magicstomp'):
+                print(f"🔍 DEBUG: RealtimeMagicstomp exists: {self.realtime_magicstomp}")
+                if hasattr(self.realtime_magicstomp, 'output_port') and self.realtime_magicstomp.output_port:
+                    existing_port = self.realtime_magicstomp.output_port
+                    print("🔍 DEBUG: Using existing RealtimeMagicstomp port")
+                else:
+                    print("🔍 DEBUG: No existing port available in RealtimeMagicstomp")
+            else:
+                print("🔍 DEBUG: No RealtimeMagicstomp available")
             success = adapter.send_to_device(syx_data, midi_output, existing_port)
             
             if success:
