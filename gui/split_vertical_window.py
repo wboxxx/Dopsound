@@ -342,7 +342,8 @@ class SplitVerticalGUI:
                 
                 # Auto-apply the restored patch
                 print("🔍 DEBUG: Auto-applying restored patch to widgets")
-                self.apply_patch_to_effects()
+                # Store the patch for later auto-apply when widgets are loaded
+                self.auto_apply_restored_patch = True
             else:
                 print("🔍 DEBUG: No patch to restore")
                 # Ensure current_patch is None if no patch to restore
@@ -2490,8 +2491,11 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                     print(f"🔍 DEBUG: - current_effect_widget: {bool(self.current_effect_widget)}")
                     print(f"🔍 DEBUG: - has set_all_parameters: {hasattr(self.current_effect_widget, 'set_all_parameters') if self.current_effect_widget else False}")
                     
-                    if self.current_patch and self.effect_widget_cascade:
+                    if (self.current_patch and self.effect_widget_cascade) or getattr(self, 'auto_apply_restored_patch', False):
                         print(f"🔍 DEBUG: All conditions met, proceeding with auto-apply")
+                        if getattr(self, 'auto_apply_restored_patch', False):
+                            print(f"🔍 DEBUG: Auto-applying restored patch to widgets")
+                            self.auto_apply_restored_patch = False  # Reset flag
                         widget_params = self.convert_patch_to_widget_params(self.current_patch)
                         print(f"🔍 DEBUG: Converted widget params: {widget_params}")
                         
