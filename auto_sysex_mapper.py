@@ -21,6 +21,7 @@ SysEx précis :
 
 Ici, seule l'entrée du paramètre « Delay Level » est affichée et le message
 SysEx correspond à la valeur 96.
+
 """
 
 from __future__ import annotations
@@ -263,6 +264,7 @@ def print_summary(
     effect_filter = effect_filter.lower() if effect_filter else None
     parameter_filter = parameter_filter.lower() if parameter_filter else None
 
+
     print("🎛️  Magicstomp SysEx Mapping Generator")
     print("=" * 50)
     print(f"Sample value used for examples: {mapping['sample_value']}")
@@ -360,6 +362,7 @@ def print_summary(
             print("(Aucun paramètre trouvé – vérifiez les données source.)")
 
 
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
@@ -408,6 +411,7 @@ def main() -> None:
         action="store_true",
         help="Masque les paramètres spécifiques à chaque effet.",
     )
+
 
     args = parser.parse_args()
 
