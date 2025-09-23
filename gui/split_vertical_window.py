@@ -2849,8 +2849,8 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                 else:
                     print(f"🔍 DEBUG: No current_effect_var found")
                 
-                # Check effects frame
-                print(f"🔍 DEBUG: Effects frame: {self.effects_frame}")
+                # Check patch builder frame
+                print(f"🔍 DEBUG: Patch builder frame: {self.patch_builder_frame}")
                 print(f"🔍 DEBUG: Params scrollable frame: {self.params_scrollable_frame}")
                 print(f"🔍 DEBUG: Params scrollable frame children: {self.params_scrollable_frame.winfo_children()}")
                 
