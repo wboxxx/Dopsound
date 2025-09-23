@@ -2189,6 +2189,25 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
             echo_keys = ['time', 'feedback', 'mix', 'low_cut', 'high_cut', 'high_ratio']
             specific_params = {k: all_params[k] for k in echo_keys if k in all_params}
             
+        elif widget_type == "MultiFilterWidget":
+            # Paramètres du multi-filtre (utilisé comme substitut pour le compresseur)
+            # Mapper les paramètres du compresseur vers des paramètres de filtre
+            specific_params = {
+                'type1': 0,  # Type de filtre par défaut
+                'freq1': int(all_params.get('threshold', 0.5) * 100),  # Utiliser threshold comme fréquence
+                'level1': int(all_params.get('ratio', 1.0) * 10),  # Utiliser ratio comme niveau
+                'resonance1': int(all_params.get('attack', 10)),  # Utiliser attack comme résonance
+                'mix': int(all_params.get('release', 100) / 10),  # Utiliser release comme mix
+                'type2': 0,
+                'freq2': int(all_params.get('makeup_gain', 0) * 10),
+                'level2': 0,
+                'resonance2': 0,
+                'type3': 0,
+                'freq3': 0,
+                'level3': 0,
+                'resonance3': 0
+            }
+            
         # Pour les autres widgets, utiliser tous les paramètres
         else:
             specific_params = all_params.copy()
