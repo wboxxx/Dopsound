@@ -851,8 +851,8 @@ class SplitVerticalGUI:
         # Note: Device refresh will be called after status panel is created
     
     def init_impact_visualizer(self):
-        """Initialize impact visualizer in analysis tab."""
-        self.impact_visualizer = ImpactVisualizer(self.analysis_frame)
+        """Initialize impact visualizer in upload test tab."""
+        self.impact_visualizer = ImpactVisualizer(self.upload_test_frame)
     
     def populate_effect_list(self):
         """Populate effect selection dropdown."""
