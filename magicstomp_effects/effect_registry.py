@@ -29,6 +29,60 @@ from .distortion_widgets import (
     DistortionWidget,
     AmpSimulatorWidget
 )
+from .simple_effects_widgets import (
+    DigitalDistortionWidget,
+    SymphonicWidget,
+    AutoPanWidget,
+    RotaryWidget,
+    RingModWidget
+)
+from .vintage_effects_widgets import (
+    VintageFlangeWidget,
+    MonoVintagePhaserWidget,
+    StereoVintagePhaserWidget
+)
+from .modulation_filter_widgets import (
+    ModFilterWidget,
+    DynaFilterWidget
+)
+from .early_reflection_widgets import (
+    EarlyRefWidget,
+    ReverseGateWidget
+)
+from .dynamics_widgets import (
+    MBandDynaWidget,
+    DynaFlangeWidget,
+    DynaPhaserWidget
+)
+from .tape_echo_widget import TapeEchoWidget
+from .complex_delay_widgets import (
+    DelayLCRWidget,
+    ShortMediumLongModDelayWidget
+)
+from .combined_effects_widgets import (
+    ReverbChorusWidget,
+    ReverbFlangeWidget
+)
+from .combined_effects_widgets_part2 import (
+    ReverbArrowChorusWidget,
+    ReverbSymphonicWidget
+)
+from .multitap_delay_widgets import (
+    EightBandParallelDelayWidget,
+    FourBandTwoTapModDelayWidget
+)
+from .multitap_delay_widgets_part2 import (
+    EightBandSeriesDelayWidget,
+    TwoBandFourTapModDelayWidget
+)
+from .multitap_delay_widgets_part3 import (
+    EightMultiTapModDelayWidget,
+    TwoBandLongFourShortModDelayWidget
+)
+from .final_effects_widgets import (
+    ReverbArrowSymphonicWidget,
+    AcousticMultiWidget
+)
 from .filter_widgets import (
     MultiFilterWidget,
     DynamicFilterWidget,
@@ -70,12 +124,59 @@ class EffectRegistry:
         # Distortion
         0x2F: DistortionWidget,     # "Distortion"
         0x08: AmpSimulatorWidget,   # "Amp Simulator"
+        0x1D: DigitalDistortionWidget,  # "Digital Distortion"
+        
+        # Simple Effects
+        0x14: SymphonicWidget,      # "Symphonic"
+        0x16: AutoPanWidget,        # "Auto Pan"
+        0x1A: RotaryWidget,         # "Rotary"
+        0x1B: RingModWidget,        # "Ring Mod."
+        
+        # Vintage Effects
+        0x30: VintageFlangeWidget,  # "Vintage Flange"
+        0x31: MonoVintagePhaserWidget,  # "Mono Vintage Phaser"
+        0x32: StereoVintagePhaserWidget,  # "Stereo Vintage Phaser"
+        
+        # Modulation Filters
+        0x1C: ModFilterWidget,      # "Mod. Filter"
+        
+        # Early Reflections
+        0x0A: EarlyRefWidget,       # "Early Ref."
+        0x0C: ReverseGateWidget,    # "Reverse Gate"
+        
+        # Dynamics
+        0x2E: MBandDynaWidget,      # "M.Band Dyna."
+        0x1F: DynaFlangeWidget,     # "Dyna. Flange"
+        0x20: DynaPhaserWidget,     # "Dyna. Phaser"
+        0x35: TapeEchoWidget,       # "Tape Echo"
+        
+        # Complex Delays
+        0x10: DelayLCRWidget,       # "Delay LCR"
+        0x07: ShortMediumLongModDelayWidget,  # "Short + Medium + Long Mod. Delay"
+        
+        # Combined Effects
+        0x22: ReverbChorusWidget,   # "Reverb+Chorus"
+        0x24: ReverbFlangeWidget,   # "Reverb+Flange"
+        0x23: ReverbArrowChorusWidget,  # "Reverb->Chorus"
+        0x26: ReverbSymphonicWidget,    # "Reverb+Symphonic"
+        0x27: ReverbArrowSymphonicWidget,  # "Reverb->Symphonic"
+        
+        # Multi-Tap Delays
+        0x01: EightBandParallelDelayWidget,  # "8 Band Parallel Delay"
+        0x02: EightBandSeriesDelayWidget,    # "8 Band Series Delay"
+        0x03: FourBandTwoTapModDelayWidget,  # "4 Band 2 Tap Mod. Delay"
+        0x04: TwoBandFourTapModDelayWidget,  # "2 Band 4 Tap Mod. Delay"
+        0x05: EightMultiTapModDelayWidget,   # "8 Multi Tap Mod. Delay"
+        0x06: TwoBandLongFourShortModDelayWidget,  # "2 Band Long + 4 Short Mod. Delay"
         
         # Filters
         0x2D: MultiFilterWidget,    # "Multi Filter"
         0x1E: DynamicFilterWidget,  # "Dynamic Filter"
         0x21: ThreeBandEQWidget,    # "3 Band Parametric EQ"
         0x36: CompressorWidget,     # "Compressor"
+        
+        # Multi Effects
+        0x00: AcousticMultiWidget,  # "Acoustic Multi"
         
         # Pitch
         0x18: HQPitchWidget,        # "HQ Pitch"

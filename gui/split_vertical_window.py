@@ -26,6 +26,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from auto_tone_match_magicstomp import AutoToneMatcher
 from cli.auto_match_hil import HILToneMatcher
 from hil.io import AudioDeviceManager
+from realtime_magicstomp import RealtimeMagicstomp
+from magicstomp_parameter_map import EFFECT_PARAMETERS
 
 # Import Magicstomp effects and visualization
 from magicstomp_effects import EffectRegistry
@@ -86,6 +88,12 @@ class SplitVerticalGUI:
         self.current_effect_type = None
         self.impact_visualizer = None
         
+        # MIDI/Sysex communication
+        self.realtime_magicstomp = RealtimeMagicstomp()
+        
+        # Create reverse mapping: parameter name -> offset
+        self.parameter_to_offset = {v: k for k, v in EFFECT_PARAMETERS.items()}
+        
         # Parameter state
         self.original_parameters = {}
         self.target_parameters = {}
@@ -98,6 +106,7 @@ class SplitVerticalGUI:
         self.setup_styles()
         self.create_widgets()
         self.init_hil_system()
+        self.init_midi_connection()
         self.load_settings()
     
     def setup_styles(self):
@@ -957,14 +966,99 @@ class SplitVerticalGUI:
                 self.current_effect_widget.set_parameter_callback(
                     child.param_name, parameter_changed)
     
+    def find_sysex_offset(self, param_name: str, effect_type: str) -> int:
+        """Find Sysex offset for a parameter based on effect type and parameter name."""
+        # Create mapping based on effect type and parameter name
+        effect_param_mapping = {
+            # Compressor parameters
+            'threshold': 4,
+            'ratio': 34,
+            'attack': 35,
+            'release': 36,
+            'knee': 37,
+            'gain': 38,
+            'makeup_gain': 38,
+            
+            # EQ parameters
+            'eq1_gain': 36,  # Treble
+            'eq1_freq': 36,
+            'eq2_gain': 37,  # High Middle
+            'eq2_freq': 37,
+            'eq3_gain': 38,  # Low Middle
+            'eq3_freq': 38,
+            'bass': 39,
+            
+            # Delay parameters
+            'time': 74,  # DelayTapL
+            'feedback': 76,  # DelayFeedbackGain
+            'mix': 78,  # DelayLevel
+            'low_cut': 82,  # DelayHPF
+            'high_cut': 83,  # DelayLPF
+            
+            # Modulation parameters
+            'wave': 25,  # ModWave
+            'freq': 63,  # ModSpeed
+            'speed': 63,
+            'depth': 64,  # ModDepth
+            'level': 65,  # ChorusLevel
+            
+            # Reverb parameters
+            'reverb_time': 85,  # ReverbTime
+            'high_ratio': 86,  # ReverbHighRatio
+            'diffusion': 87,  # ReverbDiffusion
+            'density': 88,  # ReverbDensity
+            'mix': 89,  # ReverbLevel
+        }
+        
+        # Convert parameter name to lowercase for matching
+        param_lower = param_name.lower().replace(' ', '_').replace('.', '_')
+        
+        # Try exact match first
+        if param_lower in effect_param_mapping:
+            return effect_param_mapping[param_lower]
+        
+        # Try partial matches
+        for key, offset in effect_param_mapping.items():
+            if key in param_lower or param_lower in key:
+                return offset
+        
+        return None
+    
     def on_parameter_changed(self, param_name: str, user_value, magicstomp_value: int):
         """Handle parameter changes."""
         self.current_parameters = self.current_effect_widget.get_all_parameters()
         
+        # Send Sysex message to Magicstomp if connected
+        if hasattr(self, 'realtime_magicstomp') and self.realtime_magicstomp.output_port:
+            # Try to find the offset for this parameter
+            offset = self.find_sysex_offset(param_name, self.current_effect_type)
+            if offset is not None:
+                try:
+                    # Convert magicstomp_value to 0-127 range if needed
+                    sysex_value = int(magicstomp_value) & 0x7F  # Ensure 7-bit value
+                    self.realtime_magicstomp.tweak_parameter(offset, sysex_value)
+                    self.log_status(f"🎛️ {param_name}: {user_value} → Sysex offset {offset} = {sysex_value}")
+                except Exception as e:
+                    self.log_status(f"❌ Error sending Sysex for {param_name}: {e}")
+            else:
+                self.log_status(f"⚠️ No Sysex mapping found for parameter: {param_name}")
+        else:
+            self.log_status(f"🎛️ {param_name}: {user_value} (MIDI not connected)")
+        
         if self.target_parameters:
             self.update_impact_visualization()
-        
-        self.log_status(f"🎛️ {param_name}: {user_value}")
+    
+    def init_midi_connection(self):
+        """Initialize MIDI connection to Magicstomp."""
+        try:
+            # Try to connect to Magicstomp
+            self.realtime_magicstomp.connect()
+            if self.realtime_magicstomp.output_port:
+                self.log_status("✅ MIDI connection to Magicstomp established")
+            else:
+                self.log_status("⚠️ MIDI connection failed - no output port found")
+        except Exception as e:
+            self.log_status(f"❌ Error initializing MIDI connection: {e}")
     
     def analyze_current_parameters(self):
         """Analyze current parameters."""
@@ -2743,6 +2837,10 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
             
             # Ensure audio stream is stopped
             self.stop_audio_capture()
+            
+            # Close MIDI connection
+            if hasattr(self, 'realtime_magicstomp'):
+                self.realtime_magicstomp.disconnect()
             
             # Save settings before closing
             self.save_settings()

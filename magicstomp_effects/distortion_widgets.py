@@ -428,3 +428,103 @@ class AmpSimulatorWidget(BaseEffectWidget):
             self.set_parameter_value("Low Middle", params['low_middle'])
         if 'bass' in params:
             self.set_parameter_value("Bass", params['bass'])
+
+
+class DigitalDistortionWidget(BaseEffectWidget):
+    """Widget pour l'effet digital distortion du Magicstomp."""
+    
+    def __init__(self, parent=None, **kwargs):
+        super().__init__(parent, **kwargs)
+        self._create_widgets()
+    
+    def _create_widgets(self):
+        """Crée l'interface de la digital distortion."""
+        # Titre
+        title = ttk.Label(self, text="Digital Distortion", font=("Arial", 12, "bold"))
+        title.grid(row=0, column=0, columnspan=6, pady=(0, 10))
+        
+        # Type
+        self.create_parameter_widget(
+            "Type",
+            param_type="combobox",
+            values=["Distortion1", "Distortion2", "Overdrive1", "Overdrive2", "Crunch"],
+            offset=0,
+            length=1,
+            row=1, column=0
+        )
+        
+        # Drive
+        self.create_parameter_widget(
+            "Drive",
+            param_type="spinbox",
+            min_val=0,
+            max_val=100,
+            step=1,
+            offset=1,
+            length=1,
+            row=1, column=2
+        )
+        
+        # Master
+        self.create_parameter_widget(
+            "Master",
+            param_type="spinbox",
+            min_val=0,
+            max_val=100,
+            step=1,
+            offset=2,
+            length=1,
+            row=2, column=0
+        )
+        
+        # Tone
+        self.create_parameter_widget(
+            "Tone",
+            param_type="spinbox",
+            min_val=-10,
+            max_val=10,
+            step=1,
+            offset=3,
+            length=1,
+            conversion="scaleAndAdd(1, -10)",
+            row=2, column=2
+        )
+        
+        # Noise Gate
+        self.create_parameter_widget(
+            "Noise Gate",
+            param_type="spinbox",
+            min_val=0,
+            max_val=20,
+            step=1,
+            offset=4,
+            length=1,
+            row=3, column=0
+        )
+    
+    def get_all_parameters(self):
+        """Retourne tous les paramètres de la digital distortion."""
+        params = {}
+        
+        # Digital Distortion parameters
+        params['type'] = self.get_parameter_value("Type")
+        params['drive'] = self.get_parameter_value("Drive")
+        params['master'] = self.get_parameter_value("Master")
+        params['tone'] = self.get_parameter_value("Tone")
+        params['noise_gate'] = self.get_parameter_value("Noise Gate")
+        
+        return params
+    
+    def set_all_parameters(self, params):
+        """Applique tous les paramètres de la digital distortion."""
+        # Digital Distortion parameters
+        if 'type' in params:
+            self.set_parameter_value("Type", params['type'])
+        if 'drive' in params:
+            self.set_parameter_value("Drive", params['drive'])
+        if 'master' in params:
+            self.set_parameter_value("Master", params['master'])
+        if 'tone' in params:
+            self.set_parameter_value("Tone", params['tone'])
+        if 'noise_gate' in params:
+            self.set_parameter_value("Noise Gate", params['noise_gate'])
