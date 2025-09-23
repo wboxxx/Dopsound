@@ -13,6 +13,8 @@ from tkinter import ttk, filedialog, messagebox
 import threading
 import time
 import json
+import csv
+import re
 import numpy as np
 from pathlib import Path
 import matplotlib.pyplot as plt
@@ -104,7 +106,18 @@ class SplitVerticalGUI:
         
         # Settings file path
         self.settings_file = Path("magicstomp_gui_settings.json")
-        
+
+        # Effect catalog (official + supported widgets)
+        self.official_effect_names = set()
+        self.official_effect_lookup = {}
+        self.supported_effect_name_to_type = {}
+        self.supported_effect_normalized_to_name = {}
+        self.supported_effect_normalized_to_type = {}
+        self.canonical_to_official_name = {}
+
+        # Load Magicstomp catalog to align analysis suggestions with official effects
+        self.load_official_effect_catalog()
+
         # Initialize
         self.setup_styles()
         self.create_widgets()
@@ -2309,25 +2322,30 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                 
                 loaded_effects = []
                 for i, effect_name in enumerate(identified_effects):
-                    print(f"🔍 DEBUG: Auto-loading effect {i+1}/{len(identified_effects)}: {effect_name}")
-                    self.log_status(f"🎛️ Loading effect {i+1}/{len(identified_effects)}: {effect_name}")
-                    
+                    display_name = self.get_display_name_for_effect(effect_name)
+                    print(f"🔍 DEBUG: Auto-loading effect {i+1}/{len(identified_effects)}: {effect_name} (display: {display_name})")
+                    self.log_status(f"🎛️ Loading effect {i+1}/{len(identified_effects)}: {display_name}")
+
                     # Add the effect to the cascade (don't replace previous ones)
                     success = self.add_effect_to_cascade(effect_name)
                     print(f"🔍 DEBUG: add_effect_to_cascade returned: {success}")
                     self.log_status(f"🔍 Add effect result: {success}")
-                    
+
                     if success:
                         loaded_effects.append(effect_name)
-                        self.log_status(f"✅ Loaded: {effect_name}")
+                        self.log_status(f"✅ Loaded: {display_name}")
                         print(f"🔍 DEBUG: Successfully loaded effect: {effect_name}")
                     else:
                         print(f"🔍 DEBUG: Failed to load effect: {effect_name}")
-                        self.log_status(f"❌ Failed to load: {effect_name}")
-                
+                        self.log_status(f"❌ Failed to load: {display_name}")
+
                 # Report cascade status
                 if loaded_effects:
-                    self.log_status(f"🎛️ Effect cascade loaded: {len(loaded_effects)}/{len(identified_effects)} effects")
+                    loaded_display_names = [self.get_display_name_for_effect(name) for name in loaded_effects]
+                    self.log_status(
+                        f"🎛️ Effect cascade loaded: {len(loaded_effects)}/{len(identified_effects)} effects"
+                        f" ({', '.join(loaded_display_names)})"
+                    )
                     print(f"🔍 DEBUG: Effect cascade loaded: {loaded_effects}")
                     
                     # Auto-apply patch parameters to the last loaded effect (current active one)
@@ -2388,8 +2406,10 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                         print(f"🔍 DEBUG: - has set_all_parameters: {hasattr(self.current_effect_widget, 'set_all_parameters') if self.current_effect_widget else False}")
                         self.log_status("⚠️ Effect loaded but cannot apply parameters")
                 else:
-                    self.log_status(f"⚠️ Could not auto-load effect: {effect_to_load}")
-                    print(f"🔍 DEBUG: Failed to auto-load effect: {effect_to_load}")
+                    failed_display_names = [self.get_display_name_for_effect(name) for name in identified_effects]
+                    failed_list = ', '.join(failed_display_names) if failed_display_names else 'None'
+                    self.log_status(f"⚠️ Could not auto-load effects: {failed_list}")
+                    print(f"🔍 DEBUG: Failed to auto-load effects: {identified_effects}")
             else:
                 print("🔍 DEBUG: No effects identified in patch")
                 self.log_status("💡 No specific effects identified in patch - manual selection required")
@@ -2398,102 +2418,284 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
             print(f"🔍 DEBUG: Error in auto_load_effects_from_patch: {e}")
             import traceback
             traceback.print_exc()
-    
+
+    def normalize_effect_name(self, name):
+        """Normalize effect names for comparison."""
+        if not name:
+            return ""
+        return re.sub(r"[\s\.]+", "", name).lower()
+
+    def load_official_effect_catalog(self):
+        """Load official Magicstomp effect names from the CSV reference."""
+        catalog_path = Path(__file__).parent.parent / "magicstomp_Effects+List.csv"
+        print(f"🔍 DEBUG: Loading official effect catalog from {catalog_path}")
+
+        self.official_effect_names = set()
+        self.official_effect_lookup = {}
+
+        if catalog_path.exists():
+            try:
+                with open(catalog_path, newline='', encoding='utf-8-sig') as csvfile:
+                    reader = csv.reader(csvfile)
+                    for row in reader:
+                        if not row:
+                            continue
+                        raw_name = row[0].strip()
+                        if not raw_name:
+                            continue
+
+                        upper_name = raw_name.upper()
+                        if upper_name.startswith("EFFECT TYPE") or upper_name.startswith("EFFECT TYPE LIST"):
+                            continue
+                        if upper_name.startswith("EFFECT PARAMETERS"):
+                            break
+
+                        normalized = self.normalize_effect_name(raw_name)
+                        if not normalized:
+                            continue
+
+                        self.official_effect_names.add(raw_name)
+                        self.official_effect_lookup[normalized] = raw_name
+
+                print(f"🔍 DEBUG: Loaded {len(self.official_effect_names)} official effect names")
+            except Exception as exc:
+                print(f"🔍 DEBUG: Failed to load official effect catalog: {exc}")
+                self.official_effect_names = set()
+                self.official_effect_lookup = {}
+        else:
+            print("🔍 DEBUG: Official effect catalog not found; falling back to registry names only")
+
+        # Build supported effect lookup from EffectRegistry
+        supported_effects = EffectRegistry.get_supported_effects()
+        self.supported_effect_name_to_type = {
+            name: effect_type for effect_type, name in supported_effects.items()
+        }
+        self.supported_effect_normalized_to_name = {
+            self.normalize_effect_name(name): name for name in self.supported_effect_name_to_type
+        }
+        self.supported_effect_normalized_to_type = {
+            self.normalize_effect_name(name): effect_type
+            for effect_type, name in supported_effects.items()
+        }
+
+        # Handle naming differences between CSV and registry
+        alias_map = {
+            self.normalize_effect_name("Early Ref."): self.normalize_effect_name("Early Reflections"),
+            self.normalize_effect_name("M.Band Dyna."): self.normalize_effect_name("M. Band Dynamic Processor"),
+            self.normalize_effect_name("Dyna. Filter"): self.normalize_effect_name("Dynamic Filter"),
+            self.normalize_effect_name("Dyna. Flange"): self.normalize_effect_name("Dynamic Flange"),
+            self.normalize_effect_name("Dyna. Phaser"): self.normalize_effect_name("Dynamic Phaser"),
+        }
+
+        for alias_norm, target_norm in alias_map.items():
+            if target_norm in self.supported_effect_normalized_to_name:
+                canonical_name = self.supported_effect_normalized_to_name[target_norm]
+                effect_type = self.supported_effect_normalized_to_type[target_norm]
+                self.supported_effect_normalized_to_name[alias_norm] = canonical_name
+                self.supported_effect_normalized_to_type[alias_norm] = effect_type
+
+        # Map canonical registry names back to official CSV labels when possible
+        self.canonical_to_official_name = {}
+        if self.official_effect_lookup:
+            for normalized, official_name in self.official_effect_lookup.items():
+                canonical_name = self.supported_effect_normalized_to_name.get(normalized)
+                if canonical_name:
+                    self.canonical_to_official_name[canonical_name] = official_name
+
+        print(f"🔍 DEBUG: Supported effects (widgets): {len(self.supported_effect_name_to_type)}")
+
+    def get_canonical_effect_name(self, effect_name):
+        """Return the canonical registry name for an effect if supported."""
+        if not effect_name:
+            return None
+        normalized = self.normalize_effect_name(effect_name)
+        canonical = self.supported_effect_normalized_to_name.get(normalized)
+        if canonical:
+            return canonical
+        return None
+
+    def get_effect_type_for_name(self, effect_name):
+        """Retrieve the effect type for a canonical effect name."""
+        if not effect_name:
+            return None
+        normalized = self.normalize_effect_name(effect_name)
+        return self.supported_effect_normalized_to_type.get(normalized)
+
+    def get_display_name_for_effect(self, effect_name):
+        """Return the official CSV label when available for display/logs."""
+        if not effect_name:
+            return ""
+        return self.canonical_to_official_name.get(effect_name, effect_name)
+
+    def is_effect_official(self, effect_name):
+        """Check if an effect belongs to the official Magicstomp catalog."""
+        if not effect_name:
+            return False
+        if not self.official_effect_lookup:
+            # No catalog available; accept supported registry entries
+            return True
+
+        normalized = self.normalize_effect_name(effect_name)
+        if normalized in self.official_effect_lookup:
+            return True
+
+        display_name = self.get_display_name_for_effect(effect_name)
+        display_normalized = self.normalize_effect_name(display_name)
+        return display_normalized in self.official_effect_lookup
+
+    def map_section_to_effect(self, section_name, section_data):
+        """Map patch sections to official Magicstomp effect names."""
+        if not isinstance(section_data, dict):
+            return None
+
+        section_name = section_name.lower()
+
+        direct_mapping = {
+            'compressor': 'Compressor',
+            'eq': '3 Band Parametric EQ',
+            'delay': 'Mono Delay',
+            'stereo_delay': 'Stereo Delay',
+            'tape_echo': 'Tape Echo',
+            'echo': 'Echo',
+            'mod_delay': 'Mod. Delay',
+            'moddelay': 'Mod. Delay',
+            'delay_lcr': 'Delay LCR',
+            'chorus': 'Chorus',
+            'flanger': 'Flange',
+            'phaser': 'Phaser',
+            'tremolo': 'Tremolo',
+            'symphonic': 'Symphonic',
+            'rotary': 'Rotary',
+            'ring_mod': 'Ring Mod.',
+            'auto_pan': 'Auto Pan',
+            'distortion': 'Distortion',
+            'fuzz': 'Distortion',
+            'overdrive': 'Amp Simulator',
+            'reverb': 'Reverb',
+            'gate': 'Gate Reverb',
+            'reverse_gate': 'Reverse Gate',
+            'spring_reverb': 'Spring Reverb',
+            'early_ref': 'Early Reflections',
+            'limiter': 'Multi Filter',
+            'multi_filter': 'Multi Filter',
+            'amp': 'Amp Simulator',
+            'amp_sim': 'Amp Simulator',
+            'amp_simulator': 'Amp Simulator',
+            'dynamic_filter': 'Dynamic Filter',
+            'dynamic_flange': 'Dynamic Flange',
+            'dynamic_phaser': 'Dynamic Phaser',
+            'mod_filter': 'Mod. Filter',
+            'eq3band': '3 Band Parametric EQ',
+            'dual_pitch': 'Dual Pitch',
+            'hq_pitch': 'HQ Pitch',
+            'pitch': 'HQ Pitch',
+        }
+
+        if section_name in direct_mapping:
+            return self.get_canonical_effect_name(direct_mapping[section_name])
+
+        if section_name == 'mod':
+            mod_type = str(section_data.get('type', '')).lower()
+            mod_mapping = {
+                'chorus': 'Chorus',
+                'flanger': 'Flange',
+                'phaser': 'Phaser',
+                'tremolo': 'Tremolo',
+                'symphonic': 'Symphonic',
+                'rotary': 'Rotary',
+                'autopan': 'Auto Pan',
+                'auto_pan': 'Auto Pan',
+                'ring': 'Ring Mod.',
+                'ringmod': 'Ring Mod.',
+                'ring_mod': 'Ring Mod.',
+            }
+            candidate = mod_mapping.get(mod_type)
+            if candidate:
+                return self.get_canonical_effect_name(candidate)
+
+        if section_name == 'booster':
+            booster_type = str(section_data.get('type', '')).lower()
+            booster_mapping = {
+                'distortion': 'Distortion',
+                'overdrive': 'Distortion',
+                'fuzz': 'Distortion',
+                'clean': 'Compressor',
+            }
+            candidate = booster_mapping.get(booster_type, 'Distortion')
+            return self.get_canonical_effect_name(candidate)
+
+        return None
+
     def identify_effects_from_patch(self, patch):
         """Identify effects from patch data."""
         print("🔍 DEBUG: Starting identify_effects_from_patch()")
         print(f"🔍 DEBUG: Analyzing patch: {patch}")
-        
+
         identified_effects = []
-        
+        seen_effects = set()
+
         try:
             # Check patch sections to identify effects
             for section_name, section_data in patch.items():
                 if isinstance(section_data, dict) and section_name != 'meta':
                     print(f"🔍 DEBUG: Analyzing section: {section_name}")
-                    
-                    # Map section names to real Magicstomp effect names
-                    effect_mapping = {
-                        'compressor': 'Compressor',  # Will map to available effect
-                        'eq': '3 Band Parametric EQ',          # Maps to ThreeBandEQWidget
-                        'delay': 'Mono Delay',      # Maps to MonoDelayWidget
-                        'stereo_delay': 'Stereo Delay',  # Maps to StereoDelayWidget
-                        'tape_echo': 'Echo',        # Maps to EchoWidget
-                        'chorus': 'Chorus',         # Maps to ChorusWidget
-                        'flanger': 'Flange',        # Maps to FlangeWidget
-                        'phaser': 'Phaser',         # Maps to PhaserWidget
-                        'overdrive': 'Amp Simulator',  # Maps to AmpSimulatorWidget
-                        'distortion': 'Distortion', # Maps to DistortionWidget
-                        'fuzz': 'Distortion',       # Maps to DistortionWidget
-                        'reverb': 'Reverb',         # Maps to ReverbWidget
-                        'gate': 'Gate Reverb',      # Maps to GateReverbWidget
-                        'limiter': 'Multi Filter'   # Maps to MultiFilterWidget
-                    }
-                    
-                    if section_name in effect_mapping:
-                        effect_name = effect_mapping[section_name]
-                        if effect_name not in identified_effects:
-                            identified_effects.append(effect_name)
-                            print(f"🔍 DEBUG: Identified effect: {effect_name}")
-            
+
+                    effect_name = self.map_section_to_effect(section_name, section_data)
+                    if effect_name:
+                        normalized = self.normalize_effect_name(effect_name)
+                        if normalized in seen_effects:
+                            print(f"🔍 DEBUG: Effect already identified: {effect_name}")
+                            continue
+
+                        display_name = self.get_display_name_for_effect(effect_name)
+                        if not self.is_effect_official(effect_name):
+                            print(f"🔍 DEBUG: Skipping non-official effect suggestion: {effect_name}")
+                            continue
+
+                        seen_effects.add(normalized)
+                        identified_effects.append(effect_name)
+                        print(f"🔍 DEBUG: Identified effect: {effect_name} (display: {display_name})")
+                    else:
+                        print(f"🔍 DEBUG: No mapping found for section: {section_name}")
+
             print(f"🔍 DEBUG: Final identified effects: {identified_effects}")
             return identified_effects
-            
+
         except Exception as e:
             print(f"🔍 DEBUG: Error identifying effects: {e}")
             return []
-    
+
     def add_effect_to_cascade(self, effect_name):
         """Add an effect widget to the cascade without replacing existing ones."""
         print(f"🔍 DEBUG: Starting add_effect_to_cascade: {effect_name}")
-        
+
         try:
-            # Map effect names to real Magicstomp effect types (from effect_registry.py)
-            effect_type_mapping = {
-                '3 Band Parametric EQ': 0x21,  # ThreeBandEQWidget
-                'Mono Delay': 0x0D,       # MonoDelayWidget
-                'Stereo Delay': 0x0E,     # StereoDelayWidget
-                'Echo': 0x11,             # EchoWidget
-                'Chorus': 0x12,           # ChorusWidget
-                'Flange': 0x13,           # FlangeWidget
-                'Phaser': 0x15,           # PhaserWidget
-                'Amp Simulator': 0x08,    # AmpSimulatorWidget
-                'Distortion': 0x2F,       # DistortionWidget
-                'Reverb': 0x09,           # ReverbWidget
-                'Gate Reverb': 0x0B,      # GateReverbWidget
-                'Multi Filter': 0x2D,     # MultiFilterWidget
-                'Dynamic Filter': 0x1E,   # DynamicFilterWidget
-                'Mod. Delay': 0x0F,       # ModDelayWidget
-                'Compressor': 0x36,       # CompressorWidget
-            }
-            
-            # Check if effect is available
-            if effect_name not in effect_type_mapping:
-                print(f"🔍 DEBUG: Effect {effect_name} not available in mapping")
+            canonical_name = self.get_canonical_effect_name(effect_name)
+            if not canonical_name:
+                print(f"🔍 DEBUG: Effect {effect_name} not recognized in registry")
                 return False
-            
-            effect_type = effect_type_mapping[effect_name]
-            
-            # Special handling for Compressor (use Multi Filter as substitute)
-            if effect_name == 'Compressor':
-                print(f"🔍 DEBUG: {effect_name} not available, using Multi Filter as substitute")
-                effect_name = 'Multi Filter'
-                effect_type = 0x2D
-            
+
+            effect_type = self.get_effect_type_for_name(canonical_name)
+            if effect_type is None:
+                print(f"🔍 DEBUG: No widget available for effect {canonical_name}")
+                return False
+
+            display_name = self.get_display_name_for_effect(canonical_name)
+
             print(f"🔍 DEBUG: Starting load_effect_widget_by_type: {effect_type}")
-            
+
             # Load the effect widget
             effect_widget = self.load_effect_widget_by_type(effect_type)
             
             if effect_widget:
-                print(f"🔍 DEBUG: Successfully added {effect_name} to cascade")
+                print(f"🔍 DEBUG: Successfully added {canonical_name} to cascade (display: {display_name})")
                 # Update current effect to the last loaded one
                 self.current_effect_widget = effect_widget
                 return True
             else:
-                print(f"🔍 DEBUG: Failed to add {effect_name} to cascade")
+                print(f"🔍 DEBUG: Failed to add {canonical_name} to cascade")
                 return False
-                
+
         except Exception as e:
             print(f"🔍 DEBUG: Error adding effect to cascade: {e}")
             return False
