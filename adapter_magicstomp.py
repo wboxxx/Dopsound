@@ -549,31 +549,41 @@ class MagicstompAdapter:
             
             # Envoie le message SysEx
             print("🔍 DEBUG: Opening MIDI port...")
-            with mido.open_output(selected_port) as port:
-                print("🔍 DEBUG: Port opened successfully")
+            try:
+                with mido.open_output(selected_port) as port:
+                    print("🔍 DEBUG: Port opened successfully")
+                    
+                    # Prepare SysEx message (exclude F0 and F7)
+                    syx_message_data = syx_data[1:-1]
+                    print(f"🔍 DEBUG: SysEx message data: {len(syx_message_data)} bytes")
+                    print(f"🔍 DEBUG: First 10 bytes: {syx_message_data[:10]}")
+                    
+                    # Check for bytes > 127
+                    invalid_bytes = [i for i, b in enumerate(syx_message_data) if b > 127]
+                    if invalid_bytes:
+                        print(f"🔍 DEBUG: Invalid bytes found at positions: {invalid_bytes}")
+                        print(f"🔍 DEBUG: Invalid byte values: {[syx_message_data[i] for i in invalid_bytes]}")
+                        # Mask bytes to 7-bit range
+                        syx_message_data = [b & 0x7F for b in syx_message_data]
+                        print(f"🔍 DEBUG: Masked data to 7-bit range")
+                    
+                    syx_message = mido.Message('sysex', data=syx_message_data)
+                    print("🔍 DEBUG: Sending SysEx message...")
+                    port.send(syx_message)
+                    print("🔍 DEBUG: Message sent!")
                 
-                # Prepare SysEx message (exclude F0 and F7)
-                syx_message_data = syx_data[1:-1]
-                print(f"🔍 DEBUG: SysEx message data: {len(syx_message_data)} bytes")
-                print(f"🔍 DEBUG: First 10 bytes: {syx_message_data[:10]}")
+                print("✅ Message SysEx envoyé avec succès")
+                print(f"💡 Le patch a été envoyé sur le patch #{syx_data[5]} (bank 0)")
+                return True
                 
-                # Check for bytes > 127
-                invalid_bytes = [i for i, b in enumerate(syx_message_data) if b > 127]
-                if invalid_bytes:
-                    print(f"🔍 DEBUG: Invalid bytes found at positions: {invalid_bytes}")
-                    print(f"🔍 DEBUG: Invalid byte values: {[syx_message_data[i] for i in invalid_bytes]}")
-                    # Mask bytes to 7-bit range
-                    syx_message_data = [b & 0x7F for b in syx_message_data]
-                    print(f"🔍 DEBUG: Masked data to 7-bit range")
-                
-                syx_message = mido.Message('sysex', data=syx_message_data)
-                print("🔍 DEBUG: Sending SysEx message...")
-                port.send(syx_message)
-                print("🔍 DEBUG: Message sent!")
-            
-            print("✅ Message SysEx envoyé avec succès")
-            print(f"💡 Le patch a été envoyé sur le patch #{syx_data[5]} (bank 0)")
-            return True
+            except SystemError as e:
+                if "already open" in str(e).lower() or "error creating" in str(e).lower():
+                    print(f"⚠️ Port MIDI déjà ouvert: {e}")
+                    print("💡 CONSEIL: Fermez d'autres applications utilisant le port MIDI")
+                    print("💡 CONSEIL: Redémarrez l'application si le problème persiste")
+                    return False
+                else:
+                    raise
             
         except Exception as e:
             print(f"❌ Erreur lors de l'envoi: {e}")
