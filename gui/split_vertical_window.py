@@ -340,6 +340,10 @@ class SplitVerticalGUI:
                 self.patch_to_restore = self.last_loaded_patch
                 print(f"🔍 DEBUG: Stored patch_to_restore: {self.patch_to_restore is not None}")
                 self.log_status(f"🔄 Patch queued for restoration: {self.last_loaded_patch.get('meta', {}).get('name', 'Unknown')}")
+                
+                # Trigger restoration with a longer delay to allow widgets to load
+                print("🔍 DEBUG: Scheduling patch restoration with 2 second delay")
+                self.root.after(2000, self.reload_restored_patch)
             else:
                 print("🔍 DEBUG: No patch to restore")
                 self.patch_to_restore = None
