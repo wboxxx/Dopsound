@@ -671,16 +671,6 @@ class SplitVerticalGUI:
         send_patch_btn = ttk.Button(patch_buttons_frame, text="📤 Send to Magicstomp", 
                                    command=self.send_patch_to_magicstomp)
         send_patch_btn.pack(side=tk.LEFT)
-        
-        # Test button for real-time parameter tweaking
-        test_param_btn = ttk.Button(patch_buttons_frame, text="🧪 Test Parameter", 
-                                   command=self.test_realtime_parameter)
-        test_param_btn.pack(side=tk.LEFT, padx=(5, 0))
-        
-        # Advanced test button
-        test_advanced_btn = ttk.Button(patch_buttons_frame, text="🔬 Test Advanced", 
-                                      command=self.test_advanced_parameters)
-        test_advanced_btn.pack(side=tk.LEFT, padx=(5, 0))
     
     def create_patch_builder_tab(self):
         """Create patch builder tab - break down patch into Magicstomp widgets, visual parameter adjustment."""
@@ -756,6 +746,15 @@ class SplitVerticalGUI:
         status_btn = ttk.Button(controls_frame, text="📊 Device Status", 
                                command=self.check_device_status)
         status_btn.pack(side=tk.LEFT)
+        
+        # Test buttons for real-time parameter tweaking
+        test_param_btn = ttk.Button(controls_frame, text="🧪 Test Parameter", 
+                                   command=self.test_realtime_parameter)
+        test_param_btn.pack(side=tk.LEFT, padx=(10, 5))
+        
+        test_advanced_btn = ttk.Button(controls_frame, text="🔬 Test Advanced", 
+                                      command=self.test_advanced_parameters)
+        test_advanced_btn.pack(side=tk.LEFT, padx=(5, 0))
         
         # Impact visualization
         self.init_impact_visualizer()
