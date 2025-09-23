@@ -367,13 +367,9 @@ class SplitVerticalGUI:
                 # Set the current patch
                 self.current_patch = self.patch_to_restore
                 
-                # First, load the effect cascade to initialize widgets
-                print("🔍 DEBUG: Loading effect cascade first...")
-                self.load_effect_cascade()
-                
-                # Then apply the patch to effects
-                print("🔍 DEBUG: Applying patch to loaded widgets...")
-                self.apply_patch_to_effects()
+                # Auto-load effects from patch (this will create the widgets)
+                print("🔍 DEBUG: Auto-loading effects from patch...")
+                self.auto_load_effects_from_patch()
                 
                 # Clear the queued patch
                 self.patch_to_restore = None
