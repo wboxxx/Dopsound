@@ -340,6 +340,8 @@ class SplitVerticalGUI:
                     print("🔍 DEBUG: Auto-apply disabled or not available")
             else:
                 print("🔍 DEBUG: No patch to restore")
+                # Ensure current_patch is None if no patch to restore
+                self.current_patch = None
                 
             print("🔍 DEBUG: restore_application_state() completed")
                     
