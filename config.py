@@ -7,6 +7,15 @@ Paramètres de configuration pour personnaliser les mappings
 et les seuils de détection d'effets.
 """
 
+from magicstomp_sysex import (
+    SYSEX_HEADER,
+    SYSEX_FOOTER,
+    PARAMETER_SEND_CMD,
+    PATCH_COMMON_LENGTH,
+    PATCH_EFFECT_LENGTH,
+    PATCH_TOTAL_LENGTH,
+)
+
 # Seuils de détection d'effets
 DETECTION_THRESHOLDS = {
     "delay": {
@@ -177,17 +186,28 @@ MOD_TYPES = {
     }
 }
 
-# Paramètres SysEx Magicstomp
+# Paramètres SysEx Magicstomp (format MagicstompFrenzy)
+from magicstomp_sysex import (
+    SYSEX_HEADER,
+    SYSEX_FOOTER,
+    PARAMETER_SEND_CMD,
+    PATCH_COMMON_LENGTH,
+    PATCH_EFFECT_LENGTH,
+    PATCH_TOTAL_LENGTH,
+)
+
+
 SYSEX_CONFIG = {
-    "manufacturer_id": 0x43,  # Yamaha
-    "device_id": 0x00,        # À adapter selon le device
-    "magicstomp_id": 0x2D,    # ID du Magicstomp
-    "commands": {
-        "patch_write": 0x40,
-        "patch_request": 0x20
+    "parameter_send": {
+        "header": SYSEX_HEADER,
+        "command": PARAMETER_SEND_CMD,
+        "footer": SYSEX_FOOTER,
     },
-    "patch_size_bytes": 128,
-    "max_patch_number": 99
+    "patch_structure": {
+        "common_length": PATCH_COMMON_LENGTH,
+        "effect_length": PATCH_EFFECT_LENGTH,
+        "total_length": PATCH_TOTAL_LENGTH,
+    },
 }
 
 # Paramètres d'analyse audio
@@ -259,9 +279,21 @@ def print_config():
     
     print(f"\n📡 Configuration SysEx:")
     sysex = config["sysex_config"]
-    print(f"   Manufacturer ID: 0x{sysex['manufacturer_id']:02X}")
-    print(f"   Device ID: 0x{sysex['device_id']:02X}")
-    print(f"   Magicstomp ID: 0x{sysex['magicstomp_id']:02X}")
+    header = sysex["parameter_send"]["header"]
+    command = sysex["parameter_send"]["command"]
+    print(
+        "   Header parameter-send: "
+        + " ".join(f"0x{byte:02X}" for byte in header)
+    )
+    print(f"   Commande parameter-send: 0x{command:02X}")
+    patch_info = sysex["patch_structure"]
+    print(
+        "   Structure patch: common={common} bytes, effect={effect} bytes, total={total} bytes".format(
+            common=patch_info["common_length"],
+            effect=patch_info["effect_length"],
+            total=patch_info["total_length"],
+        )
+    )
 
 if __name__ == "__main__":
     print_config()

@@ -19,19 +19,30 @@ from collections import deque
 import threading
 import queue
 
+from magicstomp_sysex import (
+    PATCH_COMMON_LENGTH as SYSEX_PATCH_COMMON_LENGTH,
+    PATCH_EFFECT_LENGTH as SYSEX_PATCH_EFFECT_LENGTH,
+    PATCH_TOTAL_LENGTH as SYSEX_PATCH_TOTAL_LENGTH,
+    SYSEX_HEADER,
+    SYSEX_FOOTER,
+    PARAMETER_SEND_CMD,
+    build_parameter_message,
+    calculate_checksum,
+)
+
 
 class RealtimeMagicstomp:
     """Adaptateur pour tweaking temps réel des paramètres Magicstomp."""
     
     # Constantes du format sysex Magicstomp (basé sur MagicstompFrenzy)
-    SYX_HEADER = [0xF0, 0x43, 0x7D, 0x40, 0x55, 0x42]  # Header pour modification de paramètre
-    SYX_FOOTER = 0xF7
-    PARAM_SEND_CMD = 0x20
-    
-    # Structure des patches
-    PATCH_COMMON_LENGTH = 0x20  # 32 bytes pour les paramètres communs
-    PATCH_EFFECT_LENGTH = 0x7F  # 127 bytes pour les paramètres d'effet
-    PATCH_TOTAL_LENGTH = 0x9F   # 159 bytes total
+    SYX_HEADER = SYSEX_HEADER
+    SYX_FOOTER = SYSEX_FOOTER
+    PARAM_SEND_CMD = PARAMETER_SEND_CMD
+
+    # Structure des patches (re-export depuis magicstomp_sysex pour compatibilité)
+    PATCH_COMMON_LENGTH = SYSEX_PATCH_COMMON_LENGTH
+    PATCH_EFFECT_LENGTH = SYSEX_PATCH_EFFECT_LENGTH
+    PATCH_TOTAL_LENGTH = SYSEX_PATCH_TOTAL_LENGTH
     
     # Mappings des paramètres communs (offset dans le patch)
     COMMON_PARAMS = {
@@ -199,58 +210,50 @@ class RealtimeMagicstomp:
             return None
     
     def calculate_checksum(self, data: List[int]) -> int:
-        """
-        Calcule le checksum pour les messages sysex (comme MagicstompFrenzy).
-        
+        """Proxy vers :func:`magicstomp_sysex.calculate_checksum`."""
+
+        return calculate_checksum(data)
+
+    def create_parameter_message(
+        self,
+        offset: int,
+        values: List[int],
+        *,
+        section: Optional[int] = None,
+    ) -> List[int]:
+        """Crée un message sysex pour modifier un paramètre.
+
         Args:
-            data: Liste des bytes de données (sans F0 et F7)
-            
-        Returns:
-            Checksum calculé
-        """
-        checksum = 0
-        for byte in data:
-            checksum += byte
-        return (-checksum) & 0x7F  # Négatif + masque sur 7 bits
-    
-    def create_parameter_message(self, offset: int, values: List[int]) -> List[int]:
-        """
-        Crée un message sysex pour modifier un paramètre.
-        
-        Args:
-            offset: Position du paramètre dans le patch (0-158)
+            offset: Position du paramètre dans le patch. Si ``section`` n'est
+                pas précisé, ``offset`` est interprété comme un offset global.
+                Quand ``section`` vaut ``0`` ou ``1`` il s'agit d'un offset de
+                section.
             values: Nouvelles valeurs du paramètre
-            
+            section: Forcer la section (0 = common, 1 = effect)
+
         Returns:
             Message sysex complet
         """
-        message = []
-        
-        # Header
-        message.extend(self.SYX_HEADER)
-        message.append(self.PARAM_SEND_CMD)
-        
-        # Détermine la section (commune ou effet)
-        if offset < self.PATCH_COMMON_LENGTH:
-            message.append(0x00)  # Section commune
-            message.append(offset)
+
+        if section is None:
+            global_offset = offset
+        elif section == 0:
+            global_offset = offset
+        elif section == 1:
+            global_offset = self.PATCH_COMMON_LENGTH + offset
         else:
-            message.append(0x01)  # Section effet
-            message.append(offset - self.PATCH_COMMON_LENGTH)
-        
-        # Ajoute les valeurs
-        message.extend(values)
-        
-        # Calcule et ajoute le checksum
-        checksum = self.calculate_checksum(message[1:])  # Exclut le F0
-        message.append(checksum)
-        
-        # Footer
-        message.append(self.SYX_FOOTER)
-        
-        return message
-    
-    def tweak_parameter(self, offset: int, value: int, immediate: bool = False):
+            raise ValueError(f"Section invalide: {section}")
+
+        return build_parameter_message(global_offset, values)
+
+    def tweak_parameter(
+        self,
+        offset: int,
+        value: int,
+        immediate: bool = False,
+        *,
+        section: Optional[int] = None,
+    ):
         """
         Modifie un paramètre en temps réel.
         
@@ -264,14 +267,23 @@ class RealtimeMagicstomp:
             return
         
         # Vérifie le cache pour éviter les doublons
-        cache_key = offset
+        if section is None:
+            cache_key = offset
+        elif section == 0:
+            cache_key = offset
+        elif section == 1:
+            cache_key = self.PATCH_COMMON_LENGTH + offset
+        else:
+            print(f"❌ Section invalide: {section}")
+            return
+
         with self.cache_lock:
             if cache_key in self.parameter_cache and self.parameter_cache[cache_key] == value:
                 return  # Pas de changement
             self.parameter_cache[cache_key] = value
-        
+
         # Crée le message
-        message = self.create_parameter_message(offset, [value])
+        message = self.create_parameter_message(offset, [value], section=section)
         
         if immediate:
             # Envoi immédiat

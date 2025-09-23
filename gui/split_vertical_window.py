@@ -2602,18 +2602,22 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                 )
                 print(f"🔍 DEBUG: Effect cascade loaded: {[match.display_name for match in loaded_effects]}")
                     
-                    # Check if we need to restore a queued patch
-                    print(f"🔍 DEBUG: Checking for queued patch restoration...")
-                    print(f"🔍 DEBUG: - hasattr patch_to_restore: {hasattr(self, 'patch_to_restore')}")
-                    if hasattr(self, 'patch_to_restore'):
-                        print(f"🔍 DEBUG: - patch_to_restore value: {self.patch_to_restore}")
-                    if hasattr(self, 'patch_to_restore') and self.patch_to_restore:
-                        print("🔍 DEBUG: Widgets loaded, triggering patch restoration")
-                        self.root.after(500, self.reload_restored_patch)  # Small delay to ensure widgets are ready
-                    else:
-                        print("🔍 DEBUG: No queued patch to restore")
-                    
-                    # Auto-apply patch parameters to the last loaded effect (current active one)
+                # Check if we need to restore a queued patch
+                print(f"🔍 DEBUG: Checking for queued patch restoration...")
+                print(
+                    f"🔍 DEBUG: - hasattr patch_to_restore: {hasattr(self, 'patch_to_restore')}"
+                )
+                if hasattr(self, 'patch_to_restore'):
+                    print(f"🔍 DEBUG: - patch_to_restore value: {self.patch_to_restore}")
+                if hasattr(self, 'patch_to_restore') and self.patch_to_restore:
+                    print("🔍 DEBUG: Widgets loaded, triggering patch restoration")
+                    self.root.after(
+                        500, self.reload_restored_patch
+                    )  # Small delay to ensure widgets are ready
+                else:
+                    print("🔍 DEBUG: No queued patch to restore")
+
+                # Auto-apply patch parameters to the last loaded effect (current active one)
                     print(f"🔍 DEBUG: Checking auto-apply conditions:")
                     print(f"🔍 DEBUG: - current_patch: {bool(self.current_patch)}")
                     print(f"🔍 DEBUG: - current_effect_widget: {bool(self.current_effect_widget)}")
@@ -3490,8 +3494,9 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
             # Convert patch to SysEx
             print("🔍 DEBUG: Converting patch to SysEx...")
             syx_data = adapter.json_to_syx(self.current_patch, patch_number=0)
-            print(f"🔍 DEBUG: SysEx data length: {len(syx_data)} bytes")
-            print(f"🔍 DEBUG: SysEx header: {syx_data[:10]}...")
+            print(f"🔍 DEBUG: Nombre de messages SysEx: {len(syx_data)}")
+            if syx_data:
+                print(f"🔍 DEBUG: Premier message: {syx_data[0]}")
             
             # Get selected MIDI port from settings
             midi_output = self.midi_output_var.get() if hasattr(self, 'midi_output_var') else None

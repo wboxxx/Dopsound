@@ -777,8 +777,9 @@ class MagicstompHILGUI:
             # Convert patch to SysEx
             print("🔍 DEBUG: Converting patch to SysEx...")
             syx_data = adapter.json_to_syx(self.current_patch, patch_number=0)
-            print(f"🔍 DEBUG: SysEx data length: {len(syx_data)} bytes")
-            print(f"🔍 DEBUG: SysEx header: {syx_data[:10]}...")
+            print(f"🔍 DEBUG: Nombre de messages SysEx: {len(syx_data)}")
+            if syx_data:
+                print(f"🔍 DEBUG: Premier message: {syx_data[0]}")
             
             # Get selected MIDI port
             selected_port = self.midi_port_var.get()

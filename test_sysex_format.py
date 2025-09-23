@@ -99,7 +99,7 @@ def compare_with_magicstompfrenzy():
     print("  Section: 00 (commune) ou 01 (effet)")
     print("  Offset: Position du paramètre")
     print("  Data: Valeur(s) du paramètre")
-    print("  Checksum: XOR de tous les bytes de données")
+    print("  Checksum: somme des données puis négation sur 7 bits")
     print("  Footer: F7")
     print()
     
@@ -134,17 +134,15 @@ def test_checksum_calculation():
         checksum = rt.calculate_checksum(data)
         print(f"Données: {[hex(x) for x in data]}")
         print(f"Checksum calculé: {hex(checksum)}")
-        
-        # Vérifie que le checksum XOR avec les données donne 0
-        xor_result = 0
-        for byte in data:
-            xor_result ^= byte
-        xor_result ^= checksum
-        
-        if xor_result == 0:
-            print("✅ Checksum correct")
+
+        total = sum(data) + checksum
+        if total & 0x7F == 0:
+            print("✅ Checksum correct (somme sur 7 bits)")
         else:
-            print(f"❌ Checksum incorrect (XOR résultant: {hex(xor_result)})")
+            print(
+                "❌ Checksum incorrect (somme & 0x7F ="
+                f" {hex(total & 0x7F)})"
+            )
         print()
 
 
