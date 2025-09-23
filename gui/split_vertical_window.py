@@ -334,20 +334,14 @@ class SplitVerticalGUI:
             else:
                 print("🔍 DEBUG: No last_active_tab or notebook available")
             
-            # Restore loaded patch
+            # Store patch for later restoration after widgets are loaded
             if hasattr(self, 'last_loaded_patch') and self.last_loaded_patch:
-                print(f"🔍 DEBUG: Restoring patch: {self.last_loaded_patch.get('meta', {}).get('name', 'Unknown')}")
-                self.current_patch = self.last_loaded_patch
-                self.log_status(f"🔄 Restored patch: {self.last_loaded_patch.get('meta', {}).get('name', 'Unknown')}")
-                
-                # Auto-apply the restored patch by reloading it
-                print("🔍 DEBUG: Reloading patch to initialize widgets")
-                # Trigger a patch reload which will properly initialize widgets
-                self.root.after(1000, self.reload_restored_patch)
+                print(f"🔍 DEBUG: Patch available for restoration: {self.last_loaded_patch.get('meta', {}).get('name', 'Unknown')}")
+                self.patch_to_restore = self.last_loaded_patch
+                self.log_status(f"🔄 Patch queued for restoration: {self.last_loaded_patch.get('meta', {}).get('name', 'Unknown')}")
             else:
                 print("🔍 DEBUG: No patch to restore")
-                # Ensure current_patch is None if no patch to restore
-                self.current_patch = None
+                self.patch_to_restore = None
                 
             print("🔍 DEBUG: restore_application_state() completed")
                     
@@ -360,25 +354,31 @@ class SplitVerticalGUI:
     def reload_restored_patch(self):
         """Reload the restored patch to properly initialize widgets."""
         try:
-            if hasattr(self, 'current_patch') and self.current_patch:
-                print("🔍 DEBUG: Reloading restored patch to initialize widgets")
-                self.log_status("🔄 Reloading patch to initialize widgets...")
+            if hasattr(self, 'patch_to_restore') and self.patch_to_restore:
+                print("🔍 DEBUG: Restoring queued patch to initialize widgets")
+                self.log_status("🔄 Restoring patch to initialize widgets...")
+                
+                # Set the current patch
+                self.current_patch = self.patch_to_restore
                 
                 # Apply the patch to effects (this will initialize widgets properly)
                 self.apply_patch_to_effects()
+                
+                # Clear the queued patch
+                self.patch_to_restore = None
                 
                 # Trigger analysis to fully initialize the system
                 if hasattr(self, 'run_analysis'):
                     print("🔍 DEBUG: Triggering analysis to complete initialization")
                     self.run_analysis()
                 
-                self.log_status("✅ Patch reloaded and widgets initialized")
-                print("🔍 DEBUG: Patch reload completed")
+                self.log_status("✅ Patch restored and widgets initialized")
+                print("🔍 DEBUG: Patch restoration completed")
             else:
-                print("🔍 DEBUG: No current patch to reload")
+                print("🔍 DEBUG: No queued patch to restore")
         except Exception as e:
-            self.log_status(f"⚠️ Error reloading patch: {e}")
-            print(f"🔍 DEBUG: Error reloading patch: {e}")
+            self.log_status(f"⚠️ Error restoring patch: {e}")
+            print(f"🔍 DEBUG: Error restoring patch: {e}")
             import traceback
             print(f"🔍 DEBUG: Traceback: {traceback.format_exc()}")
     
@@ -2509,6 +2509,11 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                         f" ({', '.join(loaded_display_names)})"
                     )
                     print(f"🔍 DEBUG: Effect cascade loaded: {loaded_effects}")
+                    
+                    # Check if we need to restore a queued patch
+                    if hasattr(self, 'patch_to_restore') and self.patch_to_restore:
+                        print("🔍 DEBUG: Widgets loaded, triggering patch restoration")
+                        self.root.after(500, self.reload_restored_patch)  # Small delay to ensure widgets are ready
                     
                     # Auto-apply patch parameters to the last loaded effect (current active one)
                     print(f"🔍 DEBUG: Checking auto-apply conditions:")
