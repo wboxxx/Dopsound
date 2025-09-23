@@ -338,10 +338,12 @@ class SplitVerticalGUI:
             if hasattr(self, 'last_loaded_patch') and self.last_loaded_patch:
                 print(f"🔍 DEBUG: Patch available for restoration: {self.last_loaded_patch.get('meta', {}).get('name', 'Unknown')}")
                 self.patch_to_restore = self.last_loaded_patch
+                print(f"🔍 DEBUG: Stored patch_to_restore: {self.patch_to_restore is not None}")
                 self.log_status(f"🔄 Patch queued for restoration: {self.last_loaded_patch.get('meta', {}).get('name', 'Unknown')}")
             else:
                 print("🔍 DEBUG: No patch to restore")
                 self.patch_to_restore = None
+                print(f"🔍 DEBUG: Set patch_to_restore to None")
                 
             print("🔍 DEBUG: restore_application_state() completed")
                     
@@ -2511,9 +2513,15 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                     print(f"🔍 DEBUG: Effect cascade loaded: {loaded_effects}")
                     
                     # Check if we need to restore a queued patch
+                    print(f"🔍 DEBUG: Checking for queued patch restoration...")
+                    print(f"🔍 DEBUG: - hasattr patch_to_restore: {hasattr(self, 'patch_to_restore')}")
+                    if hasattr(self, 'patch_to_restore'):
+                        print(f"🔍 DEBUG: - patch_to_restore value: {self.patch_to_restore}")
                     if hasattr(self, 'patch_to_restore') and self.patch_to_restore:
                         print("🔍 DEBUG: Widgets loaded, triggering patch restoration")
                         self.root.after(500, self.reload_restored_patch)  # Small delay to ensure widgets are ready
+                    else:
+                        print("🔍 DEBUG: No queued patch to restore")
                     
                     # Auto-apply patch parameters to the last loaded effect (current active one)
                     print(f"🔍 DEBUG: Checking auto-apply conditions:")
