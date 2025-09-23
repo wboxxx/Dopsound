@@ -120,10 +120,10 @@ class SplitVerticalGUI:
 
         # Initialize
         self.setup_styles()
+        self.load_settings()
         self.create_widgets()
         self.init_hil_system()
         self.init_midi_connection()
-        self.load_settings()
     
     def setup_styles(self):
         """Setup compact styling."""
