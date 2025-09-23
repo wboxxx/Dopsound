@@ -557,6 +557,15 @@ class MagicstompAdapter:
                 print(f"🔍 DEBUG: SysEx message data: {len(syx_message_data)} bytes")
                 print(f"🔍 DEBUG: First 10 bytes: {syx_message_data[:10]}")
                 
+                # Check for bytes > 127
+                invalid_bytes = [i for i, b in enumerate(syx_message_data) if b > 127]
+                if invalid_bytes:
+                    print(f"🔍 DEBUG: Invalid bytes found at positions: {invalid_bytes}")
+                    print(f"🔍 DEBUG: Invalid byte values: {[syx_message_data[i] for i in invalid_bytes]}")
+                    # Mask bytes to 7-bit range
+                    syx_message_data = [b & 0x7F for b in syx_message_data]
+                    print(f"🔍 DEBUG: Masked data to 7-bit range")
+                
                 syx_message = mido.Message('sysex', data=syx_message_data)
                 print("🔍 DEBUG: Sending SysEx message...")
                 port.send(syx_message)
