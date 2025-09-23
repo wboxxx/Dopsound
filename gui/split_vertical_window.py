@@ -340,10 +340,10 @@ class SplitVerticalGUI:
                 self.current_patch = self.last_loaded_patch
                 self.log_status(f"🔄 Restored patch: {self.last_loaded_patch.get('meta', {}).get('name', 'Unknown')}")
                 
-                # Auto-apply the restored patch
-                print("🔍 DEBUG: Auto-applying restored patch to widgets")
-                # Store the patch for later auto-apply when widgets are loaded
-                self.auto_apply_restored_patch = True
+                # Auto-apply the restored patch by reloading it
+                print("🔍 DEBUG: Reloading patch to initialize widgets")
+                # Trigger a patch reload which will properly initialize widgets
+                self.root.after(1000, self.reload_restored_patch)
             else:
                 print("🔍 DEBUG: No patch to restore")
                 # Ensure current_patch is None if no patch to restore
@@ -354,6 +354,31 @@ class SplitVerticalGUI:
         except Exception as e:
             self.log_status(f"⚠️ Error restoring application state: {e}")
             print(f"🔍 DEBUG: Error restoring state: {e}")
+            import traceback
+            print(f"🔍 DEBUG: Traceback: {traceback.format_exc()}")
+    
+    def reload_restored_patch(self):
+        """Reload the restored patch to properly initialize widgets."""
+        try:
+            if hasattr(self, 'current_patch') and self.current_patch:
+                print("🔍 DEBUG: Reloading restored patch to initialize widgets")
+                self.log_status("🔄 Reloading patch to initialize widgets...")
+                
+                # Apply the patch to effects (this will initialize widgets properly)
+                self.apply_patch_to_effects()
+                
+                # Trigger analysis to fully initialize the system
+                if hasattr(self, 'run_analysis'):
+                    print("🔍 DEBUG: Triggering analysis to complete initialization")
+                    self.run_analysis()
+                
+                self.log_status("✅ Patch reloaded and widgets initialized")
+                print("🔍 DEBUG: Patch reload completed")
+            else:
+                print("🔍 DEBUG: No current patch to reload")
+        except Exception as e:
+            self.log_status(f"⚠️ Error reloading patch: {e}")
+            print(f"🔍 DEBUG: Error reloading patch: {e}")
             import traceback
             print(f"🔍 DEBUG: Traceback: {traceback.format_exc()}")
     
