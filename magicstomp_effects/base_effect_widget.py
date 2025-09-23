@@ -44,6 +44,7 @@ class BaseEffectWidget(ttk.Frame):
                                offset: Optional[int] = None,
                                length: int = 1,
                                conversion: Optional[str] = None,
+                               values: Optional[list] = None,
                                row: int = 0,
                                column: int = 0) -> tk.Widget:
         """
@@ -74,7 +75,9 @@ class BaseEffectWidget(ttk.Frame):
                                width=10)
         elif param_type == "combobox":
             widget = ttk.Combobox(self, width=12)
-            if isinstance(min_val, list):
+            if values is not None:
+                widget['values'] = values
+            elif isinstance(min_val, list):
                 widget['values'] = min_val
             else:
                 widget['values'] = list(range(int(min_val), int(max_val) + 1))

@@ -119,7 +119,7 @@ class EffectRegistry:
         # Reverb
         0x09: ReverbWidget,         # "Reverb"
         0x0B: GateReverbWidget,     # "Gate Reverb"
-        0x22: SpringReverbWidget,   # "Spring Reverb"
+        0x34: SpringReverbWidget,   # "Spring Reverb"
         
         # Distortion
         0x2F: DistortionWidget,     # "Distortion"
@@ -155,11 +155,12 @@ class EffectRegistry:
         0x07: ShortMediumLongModDelayWidget,  # "Short + Medium + Long Mod. Delay"
         
         # Combined Effects
-        0x22: ReverbChorusWidget,   # "Reverb+Chorus"
-        0x24: ReverbFlangeWidget,   # "Reverb+Flange"
-        0x23: ReverbArrowChorusWidget,  # "Reverb->Chorus"
-        0x26: ReverbSymphonicWidget,    # "Reverb+Symphonic"
-        0x27: ReverbArrowSymphonicWidget,  # "Reverb->Symphonic"
+        0x22: ReverbChorusWidget,   # "Reverb->Chorus"
+        0x23: ReverbFlangeWidget,   # "Reverb+Flange"
+        0x24: ReverbArrowChorusWidget,  # "Reverb->Flange"
+        0x25: ReverbSymphonicWidget,    # "Reverb+Symphonic"
+        0x26: ReverbArrowSymphonicWidget,  # "Reverb->Symphonic"
+        0x27: AutoPanWidget,            # "Reverb -> Pan"
         
         # Multi-Tap Delays
         0x01: EightBandParallelDelayWidget,  # "8 Band Parallel Delay"
@@ -181,6 +182,23 @@ class EffectRegistry:
         # Pitch
         0x18: HQPitchWidget,        # "HQ Pitch"
         0x19: DualPitchWidget,      # "Dual Pitch"
+        
+        # Missing effects (placeholder widgets)
+        0x28: EarlyRefWidget,       # "Delay + Early Ref."
+        0x29: EarlyRefWidget,       # "Delay -> Early Ref."
+        0x2A: ReverbWidget,         # "Delay + Reverb"
+        0x2B: ReverbWidget,         # "Delay -> Reverb"
+        0x2C: DistortionWidget,     # "Distortion -> Delay"
+        0x33: ThreeBandEQWidget,    # "3 Band Parametric EQ" (duplicate)
+        0x37: ChorusWidget,         # "Amp Multi (Chorus)"
+        0x38: FlangeWidget,         # "Amp Multi (Flange)"
+        0x39: TremoloWidget,        # "Amp Multi (Tremolo)"
+        0x3A: PhaserWidget,         # "Amp Multi (Phaser)"
+        0x3B: ChorusWidget,         # "Distortion Multi (Chorus)"
+        0x3C: FlangeWidget,         # "Distortion Multi (Flange)"
+        0x3D: TremoloWidget,        # "Distortion Multi (Tremolo)"
+        0x3E: PhaserWidget,         # "Distortion Multi (Phaser)"
+        0x3F: AmpSimulatorWidget,   # "Bass Preamp"
     }
     
     # Noms des effets (basés sur magicstomptext.h)

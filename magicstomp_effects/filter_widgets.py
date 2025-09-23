@@ -444,8 +444,10 @@ class CompressorWidget(BaseEffectWidget):
         # Slope
         self.create_parameter_widget(
             "Slope",
-            param_type="combobox",
-            values=["-6 dB", "-12 dB"],
+            param_type="spinbox",
+            min_val=0,
+            max_val=1,
+            step=1,
             offset=4,
             length=1,
             row=3, column=0
