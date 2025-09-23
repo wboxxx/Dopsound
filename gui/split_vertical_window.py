@@ -1376,19 +1376,54 @@ File: {Path(self.target_file).name}"""
             if hasattr(self, 'patch_display_frame'):
                 for widget in self.patch_display_frame.winfo_children():
                     widget.destroy()
+                # Recreate scrollable components
+                self.patch_canvas = tk.Canvas(self.patch_display_frame, height=300)
+                self.patch_scrollbar = ttk.Scrollbar(self.patch_display_frame, orient="vertical", command=self.patch_canvas.yview)
+                self.patch_scrollable_frame = ttk.Frame(self.patch_canvas)
+                
+                # Configure scrolling
+                self.patch_scrollable_frame.bind(
+                    "<Configure>",
+                    lambda e: self.patch_canvas.configure(scrollregion=self.patch_canvas.bbox("all"))
+                )
+                
+                self.patch_canvas.create_window((0, 0), window=self.patch_scrollable_frame, anchor="nw")
+                self.patch_canvas.configure(yscrollcommand=self.patch_scrollbar.set)
+                
+                # Pack canvas and scrollbar
+                self.patch_canvas.pack(side="left", fill="both", expand=True)
+                self.patch_scrollbar.pack(side="right", fill="y")
             else:
                 # Create frame if it doesn't exist
                 self.patch_display_frame = ttk.LabelFrame(self.files_frame, 
                                                         text="🎛️ Generated Patch Parameters",
                                                         padding=10)
-                self.patch_display_frame.pack(fill=tk.X, padx=10, pady=5)
+                self.patch_display_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+                
+                # Create scrollable canvas for patch parameters
+                self.patch_canvas = tk.Canvas(self.patch_display_frame, height=300)
+                self.patch_scrollbar = ttk.Scrollbar(self.patch_display_frame, orient="vertical", command=self.patch_canvas.yview)
+                self.patch_scrollable_frame = ttk.Frame(self.patch_canvas)
+                
+                # Configure scrolling
+                self.patch_scrollable_frame.bind(
+                    "<Configure>",
+                    lambda e: self.patch_canvas.configure(scrollregion=self.patch_canvas.bbox("all"))
+                )
+                
+                self.patch_canvas.create_window((0, 0), window=self.patch_scrollable_frame, anchor="nw")
+                self.patch_canvas.configure(yscrollcommand=self.patch_scrollbar.set)
+                
+                # Pack canvas and scrollbar
+                self.patch_canvas.pack(side="left", fill="both", expand=True)
+                self.patch_scrollbar.pack(side="right", fill="y")
             
-            # Display patch parameters
+            # Display patch parameters in scrollable frame
             row = 0
             for section_name, section_data in self.current_patch.items():
                 if isinstance(section_data, dict) and section_name != 'meta':
                     # Section header
-                    ttk.Label(self.patch_display_frame,
+                    ttk.Label(self.patch_scrollable_frame,
                              text=f"{section_name.upper()}:",
                              style='Section.TLabel').grid(row=row, column=0, columnspan=2, sticky='w', pady=(10, 5))
                     row += 1
@@ -1396,15 +1431,19 @@ File: {Path(self.target_file).name}"""
                     # Parameters in this section
                     for param_name, param_value in section_data.items():
                         if param_name != 'enabled':
-                            ttk.Label(self.patch_display_frame,
+                            ttk.Label(self.patch_scrollable_frame,
                                      text=f"  {param_name}:",
                                      style='Info.TLabel').grid(row=row, column=0, sticky='w', padx=20)
                             
                             value_text = f"{param_value:.4f}" if isinstance(param_value, (int, float)) else str(param_value)
-                            ttk.Label(self.patch_display_frame,
+                            ttk.Label(self.patch_scrollable_frame,
                                      text=value_text,
                                      style='Info.TLabel').grid(row=row, column=1, sticky='w', padx=10)
                             row += 1
+            
+            # Update scroll region after adding all widgets
+            self.patch_scrollable_frame.update_idletasks()
+            self.patch_canvas.configure(scrollregion=self.patch_canvas.bbox("all"))
             
             self.log_status("✅ Patch parameters displayed")
             print("🔍 DEBUG: Patch parameters displayed successfully")
@@ -2027,16 +2066,55 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
         try:
             widget_params = {}
             
-            # Extract parameters from patch sections
+            # Extract parameters from patch sections with proper mapping
             for section_name, section_data in patch.items():
                 if isinstance(section_data, dict) and section_name != 'meta':
                     print(f"🔍 DEBUG: Processing section: {section_name}")
-                    for param_name, param_value in section_data.items():
-                        if param_name != 'enabled':
-                            # Apply parameter limits if needed
-                            limited_value = self.apply_parameter_limits(param_name, param_value)
-                            widget_params[param_name] = limited_value
-                            print(f"🔍 DEBUG: {param_name}: {param_value} -> {limited_value}")
+                    
+                    if section_name == 'compressor':
+                        # Map compressor parameters
+                        if 'threshold' in section_data:
+                            widget_params['threshold'] = section_data['threshold']
+                        if 'ratio' in section_data:
+                            widget_params['ratio'] = section_data['ratio']
+                        if 'attack' in section_data:
+                            widget_params['attack'] = section_data['attack']
+                        if 'release' in section_data:
+                            widget_params['release'] = section_data['release']
+                        if 'makeup_gain' in section_data:
+                            widget_params['makeup_gain'] = section_data['makeup_gain']
+                    
+                    elif section_name == 'eq':
+                        # Map EQ parameters to widget format
+                        if 'low_gain' in section_data:
+                            widget_params['eq1_gain'] = section_data['low_gain']
+                        if 'low_freq' in section_data:
+                            widget_params['eq1_freq'] = section_data['low_freq']
+                        if 'mid_gain' in section_data:
+                            widget_params['eq2_gain'] = section_data['mid_gain']
+                        if 'mid_freq' in section_data:
+                            widget_params['eq2_freq'] = section_data['mid_freq']
+                        if 'high_gain' in section_data:
+                            widget_params['eq3_gain'] = section_data['high_gain']
+                        if 'high_freq' in section_data:
+                            widget_params['eq3_freq'] = section_data['high_freq']
+                        # Default Q values
+                        widget_params['eq1_q'] = 1.0
+                        widget_params['eq2_q'] = 1.0
+                        widget_params['eq3_q'] = 1.0
+                    
+                    elif section_name == 'delay':
+                        # Map delay parameters
+                        if 'time' in section_data:
+                            widget_params['time'] = section_data['time']
+                        if 'feedback' in section_data:
+                            widget_params['feedback'] = section_data['feedback']
+                        if 'mix' in section_data:
+                            widget_params['mix'] = section_data['mix']
+                        if 'low_cut' in section_data:
+                            widget_params['low_cut'] = section_data['low_cut']
+                        if 'high_cut' in section_data:
+                            widget_params['high_cut'] = section_data['high_cut']
             
             print(f"🔍 DEBUG: Final converted widget params: {widget_params}")
             return widget_params
@@ -2162,7 +2240,7 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                     # Map section names to real Magicstomp effect names
                     effect_mapping = {
                         'compressor': 'Compressor',  # Will map to available effect
-                        'eq': '3 Band EQ',          # Maps to ThreeBandEQWidget
+                        'eq': '3 Band Parametric EQ',          # Maps to ThreeBandEQWidget
                         'delay': 'Mono Delay',      # Maps to MonoDelayWidget
                         'stereo_delay': 'Stereo Delay',  # Maps to StereoDelayWidget
                         'tape_echo': 'Echo',        # Maps to EchoWidget
@@ -2197,7 +2275,7 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
         try:
             # Map effect names to real Magicstomp effect types (from effect_registry.py)
             effect_type_mapping = {
-                '3 Band EQ': 0x21,        # ThreeBandEQWidget
+                '3 Band Parametric EQ': 0x21,  # ThreeBandEQWidget
                 'Mono Delay': 0x0D,       # MonoDelayWidget
                 'Stereo Delay': 0x0E,     # StereoDelayWidget
                 'Echo': 0x11,             # EchoWidget
@@ -2211,7 +2289,7 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                 'Multi Filter': 0x2D,     # MultiFilterWidget
                 'Dynamic Filter': 0x1E,   # DynamicFilterWidget
                 'Mod. Delay': 0x0F,       # ModDelayWidget
-                'Compressor': 0x2D,       # Use Multi Filter as substitute
+                'Compressor': 0x36,       # CompressorWidget
             }
             
             # Check if effect is available
@@ -2258,7 +2336,7 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
         try:
             # Map effect names to real Magicstomp effect types (from effect_registry.py)
             effect_type_mapping = {
-                '3 Band EQ': 0x21,        # ThreeBandEQWidget
+                '3 Band Parametric EQ': 0x21,  # ThreeBandEQWidget
                 'Mono Delay': 0x0D,       # MonoDelayWidget
                 'Stereo Delay': 0x0E,     # StereoDelayWidget
                 'Echo': 0x11,             # EchoWidget
@@ -2291,15 +2369,15 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                     print(f"🔍 DEBUG: Failed to load effect widget for {effect_name}")
                     return False
             elif effect_name == 'Compressor':
-                # Fallback: Use Multi Filter as compressor substitute
-                print(f"🔍 DEBUG: Compressor not available, using Multi Filter as substitute")
-                effect_type = 0x2D  # MultiFilterWidget
+                # Use real Compressor widget
+                print(f"🔍 DEBUG: Loading real Compressor widget")
+                effect_type = 0x36  # CompressorWidget
                 success = self.load_effect_widget_by_type(effect_type)
                 if success:
-                    print(f"🔍 DEBUG: Successfully loaded Multi Filter as compressor substitute")
+                    print(f"🔍 DEBUG: Successfully loaded Compressor widget")
                     return True
                 else:
-                    print(f"🔍 DEBUG: Failed to load Multi Filter substitute")
+                    print(f"🔍 DEBUG: Failed to load Compressor widget")
                     return False
             else:
                 print(f"🔍 DEBUG: Unknown effect name: {effect_name}")

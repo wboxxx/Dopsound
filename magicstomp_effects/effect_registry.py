@@ -32,6 +32,7 @@ from .distortion_widgets import (
 from .filter_widgets import (
     MultiFilterWidget,
     DynamicFilterWidget,
+    CompressorWidget,
     ThreeBandEQWidget
 )
 from .pitch_widgets import (
@@ -74,6 +75,7 @@ class EffectRegistry:
         0x2D: MultiFilterWidget,    # "Multi Filter"
         0x1E: DynamicFilterWidget,  # "Dynamic Filter"
         0x21: ThreeBandEQWidget,    # "3 Band Parametric EQ"
+        0x36: CompressorWidget,     # "Compressor"
         
         # Pitch
         0x18: HQPitchWidget,        # "HQ Pitch"
@@ -115,7 +117,7 @@ class EffectRegistry:
         0x1E: "Dynamic Filter",
         0x1F: "Dynamic Flange",
         0x20: "Dynamic Phaser",
-        0x21: "Reverb + Chorus",
+        0x21: "3 Band Parametric EQ",
         0x22: "Reverb -> Chorus",
         0x23: "Reverb + Flange",
         0x24: "Reverb -> Flange",
@@ -128,6 +130,7 @@ class EffectRegistry:
         0x2B: "Delay -> Reverb",
         0x2C: "Distortion -> Delay",
         0x2D: "Multi Filter",
+        0x36: "Compressor",
         0x2E: "M. Band Dynamic Processor",
         0x2F: "Distortion",
         0x30: "Vintage Flange",

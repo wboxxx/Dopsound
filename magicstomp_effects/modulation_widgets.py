@@ -24,47 +24,46 @@ class ChorusWidget(BaseEffectWidget):
         title = ttk.Label(self, text="Chorus", font=("Arial", 12, "bold"))
         title.grid(row=0, column=0, columnspan=6, pady=(0, 10))
         
-        # Wave (Forme d'onde)
+        # Wave
         self.create_parameter_widget(
             "Wave",
             param_type="combobox",
-            min_val=["Sine", "Triangle"],
-            max_val=1,
+            values=["Sine", "Triangle"],
             offset=0,
             length=1,
             row=1, column=0
         )
         
-        # Mix
+        # Freq.
         self.create_parameter_widget(
-            "Mix",
+            "Freq.",
+            param_type="double_spinbox",
+            min_val=0.05,
+            max_val=40.0,
+            step=0.05,
+            suffix=" Hz",
+            offset=1,
+            length=1,
+            conversion="freqHz",
+            row=1, column=2
+        )
+        
+        # AM Depth
+        self.create_parameter_widget(
+            "AM Depth",
             param_type="spinbox",
             min_val=0,
             max_val=100,
             step=1,
             suffix=" %",
-            offset=1,
-            length=1,
-            row=1, column=2
-        )
-        
-        # Rate (Taux de modulation)
-        self.create_parameter_widget(
-            "Rate",
-            param_type="double_spinbox",
-            min_val=0.1,
-            max_val=20.0,
-            step=0.1,
-            suffix=" Hz",
             offset=2,
             length=1,
-            conversion="freqHz",
             row=2, column=0
         )
         
-        # Depth (Profondeur)
+        # PM Depth
         self.create_parameter_widget(
-            "Depth",
+            "PM Depth",
             param_type="spinbox",
             min_val=0,
             max_val=100,
@@ -75,12 +74,12 @@ class ChorusWidget(BaseEffectWidget):
             row=2, column=2
         )
         
-        # Delay (Délai de base)
+        # Mod. Delay
         self.create_parameter_widget(
-            "Delay",
+            "Mod. Delay",
             param_type="double_spinbox",
-            min_val=0.1,
-            max_val=50.0,
+            min_val=0.0,
+            max_val=500.0,
             step=0.1,
             suffix=" ms",
             offset=4,
@@ -89,18 +88,162 @@ class ChorusWidget(BaseEffectWidget):
             row=3, column=0
         )
         
-        # Feedback
+        # LSH Freq.
         self.create_parameter_widget(
-            "Feedback",
-            param_type="spinbox",
-            min_val=0,
-            max_val=99,
-            step=1,
-            suffix=" %",
+            "LSH Freq.",
+            param_type="double_spinbox",
+            min_val=21.2,
+            max_val=8000.0,
+            step=10.0,
+            suffix=" Hz",
             offset=5,
             length=1,
+            conversion="logScale",
             row=3, column=2
         )
+        
+        # LSH Gain
+        self.create_parameter_widget(
+            "LSH Gain",
+            param_type="double_spinbox",
+            min_val=-12.0,
+            max_val=12.0,
+            step=0.1,
+            suffix=" dB",
+            offset=6,
+            length=1,
+            row=4, column=0
+        )
+        
+        # EQ Freq.
+        self.create_parameter_widget(
+            "EQ Freq.",
+            param_type="double_spinbox",
+            min_val=100.0,
+            max_val=8000.0,
+            step=10.0,
+            suffix=" Hz",
+            offset=7,
+            length=1,
+            conversion="logScale",
+            row=4, column=2
+        )
+        
+        # EQ Gain
+        self.create_parameter_widget(
+            "EQ Gain",
+            param_type="double_spinbox",
+            min_val=-12.0,
+            max_val=12.0,
+            step=0.1,
+            suffix=" dB",
+            offset=8,
+            length=1,
+            row=5, column=0
+        )
+        
+        # EQ Q
+        self.create_parameter_widget(
+            "EQ Q",
+            param_type="double_spinbox",
+            min_val=0.10,
+            max_val=10.0,
+            step=0.1,
+            offset=9,
+            length=1,
+            row=5, column=2
+        )
+        
+        # HSH Freq.
+        self.create_parameter_widget(
+            "HSH Freq.",
+            param_type="double_spinbox",
+            min_val=50.0,
+            max_val=16000.0,
+            step=10.0,
+            suffix=" Hz",
+            offset=10,
+            length=1,
+            conversion="logScale",
+            row=6, column=0
+        )
+        
+        # HSH Gain
+        self.create_parameter_widget(
+            "HSH Gain",
+            param_type="double_spinbox",
+            min_val=-12.0,
+            max_val=12.0,
+            step=0.1,
+            suffix=" dB",
+            offset=11,
+            length=1,
+            row=6, column=2
+        )
+        
+        # Mix
+        self.create_parameter_widget(
+            "Mix",
+            param_type="spinbox",
+            min_val=0,
+            max_val=100,
+            step=1,
+            suffix=" %",
+            offset=12,
+            length=1,
+            row=7, column=0
+        )
+    
+    def get_all_parameters(self):
+        """Retourne tous les paramètres du chorus."""
+        params = {}
+        
+        # Chorus parameters
+        params['wave'] = self.get_parameter_value("Wave")
+        params['freq'] = self.get_parameter_value("Freq.")
+        params['am_depth'] = self.get_parameter_value("AM Depth")
+        params['pm_depth'] = self.get_parameter_value("PM Depth")
+        params['mod_delay'] = self.get_parameter_value("Mod. Delay")
+        params['lsh_freq'] = self.get_parameter_value("LSH Freq.")
+        params['lsh_gain'] = self.get_parameter_value("LSH Gain")
+        params['eq_freq'] = self.get_parameter_value("EQ Freq.")
+        params['eq_gain'] = self.get_parameter_value("EQ Gain")
+        params['eq_q'] = self.get_parameter_value("EQ Q")
+        params['hsh_freq'] = self.get_parameter_value("HSH Freq.")
+        params['hsh_gain'] = self.get_parameter_value("HSH Gain")
+        params['mix'] = self.get_parameter_value("Mix")
+        
+        return params
+    
+    def set_all_parameters(self, params):
+        """Applique tous les paramètres du chorus."""
+        # Chorus parameters
+        if 'wave' in params:
+            self.set_parameter_value("Wave", params['wave'])
+        if 'freq' in params:
+            self.set_parameter_value("Freq.", params['freq'])
+        if 'am_depth' in params:
+            self.set_parameter_value("AM Depth", params['am_depth'])
+        if 'pm_depth' in params:
+            self.set_parameter_value("PM Depth", params['pm_depth'])
+        if 'mod_delay' in params:
+            self.set_parameter_value("Mod. Delay", params['mod_delay'])
+        if 'lsh_freq' in params:
+            self.set_parameter_value("LSH Freq.", params['lsh_freq'])
+        if 'lsh_gain' in params:
+            self.set_parameter_value("LSH Gain", params['lsh_gain'])
+        if 'eq_freq' in params:
+            self.set_parameter_value("EQ Freq.", params['eq_freq'])
+        if 'eq_gain' in params:
+            self.set_parameter_value("EQ Gain", params['eq_gain'])
+        if 'eq_q' in params:
+            self.set_parameter_value("EQ Q", params['eq_q'])
+        if 'hsh_freq' in params:
+            self.set_parameter_value("HSH Freq.", params['hsh_freq'])
+        if 'hsh_gain' in params:
+            self.set_parameter_value("HSH Gain", params['hsh_gain'])
+        if 'mix' in params:
+            self.set_parameter_value("Mix", params['mix'])
 
 
 class FlangeWidget(BaseEffectWidget):
@@ -120,38 +263,24 @@ class FlangeWidget(BaseEffectWidget):
         self.create_parameter_widget(
             "Wave",
             param_type="combobox",
-            min_val=["Sine", "Triangle"],
-            max_val=1,
+            values=["Sine", "Triangle"],
             offset=0,
             length=1,
             row=1, column=0
         )
         
-        # Mix
+        # Freq.
         self.create_parameter_widget(
-            "Mix",
-            param_type="spinbox",
-            min_val=0,
-            max_val=100,
-            step=1,
-            suffix=" %",
+            "Freq.",
+            param_type="double_spinbox",
+            min_val=0.05,
+            max_val=40.0,
+            step=0.05,
+            suffix=" Hz",
             offset=1,
             length=1,
-            row=1, column=2
-        )
-        
-        # Rate
-        self.create_parameter_widget(
-            "Rate",
-            param_type="double_spinbox",
-            min_val=0.1,
-            max_val=20.0,
-            step=0.1,
-            suffix=" Hz",
-            offset=2,
-            length=1,
             conversion="freqHz",
-            row=2, column=0
+            row=1, column=2
         )
         
         # Depth
@@ -162,37 +291,195 @@ class FlangeWidget(BaseEffectWidget):
             max_val=100,
             step=1,
             suffix=" %",
-            offset=3,
+            offset=2,
             length=1,
+            row=2, column=0
+        )
+        
+        # FB. Gain
+        self.create_parameter_widget(
+            "FB. Gain",
+            param_type="spinbox",
+            min_val=-99,
+            max_val=99,
+            step=1,
+            suffix=" %",
+            offset=3,
+            length=2,
+            conversion="scaleAndAdd(1, -99)",
             row=2, column=2
         )
         
-        # Delay
+        # Mod. Delay
         self.create_parameter_widget(
-            "Delay",
+            "Mod. Delay",
             param_type="double_spinbox",
-            min_val=0.1,
-            max_val=10.0,
+            min_val=0.0,
+            max_val=500.0,
             step=0.1,
             suffix=" ms",
-            offset=4,
+            offset=5,
             length=1,
             conversion="timeMs",
             row=3, column=0
         )
         
-        # Feedback
+        # LSH Freq.
         self.create_parameter_widget(
-            "Feedback",
-            param_type="spinbox",
-            min_val=0,
-            max_val=99,
-            step=1,
-            suffix=" %",
-            offset=5,
+            "LSH Freq.",
+            param_type="double_spinbox",
+            min_val=21.2,
+            max_val=8000.0,
+            step=10.0,
+            suffix=" Hz",
+            offset=6,
             length=1,
+            conversion="logScale",
             row=3, column=2
         )
+        
+        # LSH Gain
+        self.create_parameter_widget(
+            "LSH Gain",
+            param_type="double_spinbox",
+            min_val=-12.0,
+            max_val=12.0,
+            step=0.1,
+            suffix=" dB",
+            offset=7,
+            length=1,
+            row=4, column=0
+        )
+        
+        # EQ Freq.
+        self.create_parameter_widget(
+            "EQ Freq.",
+            param_type="double_spinbox",
+            min_val=100.0,
+            max_val=8000.0,
+            step=10.0,
+            suffix=" Hz",
+            offset=8,
+            length=1,
+            conversion="logScale",
+            row=4, column=2
+        )
+        
+        # EQ Gain
+        self.create_parameter_widget(
+            "EQ Gain",
+            param_type="double_spinbox",
+            min_val=-12.0,
+            max_val=12.0,
+            step=0.1,
+            suffix=" dB",
+            offset=9,
+            length=1,
+            row=5, column=0
+        )
+        
+        # EQ Q
+        self.create_parameter_widget(
+            "EQ Q",
+            param_type="double_spinbox",
+            min_val=0.10,
+            max_val=10.0,
+            step=0.1,
+            offset=10,
+            length=1,
+            row=5, column=2
+        )
+        
+        # HSH Freq.
+        self.create_parameter_widget(
+            "HSH Freq.",
+            param_type="double_spinbox",
+            min_val=50.0,
+            max_val=16000.0,
+            step=10.0,
+            suffix=" Hz",
+            offset=11,
+            length=1,
+            conversion="logScale",
+            row=6, column=0
+        )
+        
+        # HSH Gain
+        self.create_parameter_widget(
+            "HSH Gain",
+            param_type="double_spinbox",
+            min_val=-12.0,
+            max_val=12.0,
+            step=0.1,
+            suffix=" dB",
+            offset=12,
+            length=1,
+            row=6, column=2
+        )
+        
+        # Mix
+        self.create_parameter_widget(
+            "Mix",
+            param_type="spinbox",
+            min_val=0,
+            max_val=100,
+            step=1,
+            suffix=" %",
+            offset=13,
+            length=1,
+            row=7, column=0
+        )
+    
+    def get_all_parameters(self):
+        """Retourne tous les paramètres du flanger."""
+        params = {}
+        
+        # Flanger parameters
+        params['wave'] = self.get_parameter_value("Wave")
+        params['freq'] = self.get_parameter_value("Freq.")
+        params['depth'] = self.get_parameter_value("Depth")
+        params['fb_gain'] = self.get_parameter_value("FB. Gain")
+        params['mod_delay'] = self.get_parameter_value("Mod. Delay")
+        params['lsh_freq'] = self.get_parameter_value("LSH Freq.")
+        params['lsh_gain'] = self.get_parameter_value("LSH Gain")
+        params['eq_freq'] = self.get_parameter_value("EQ Freq.")
+        params['eq_gain'] = self.get_parameter_value("EQ Gain")
+        params['eq_q'] = self.get_parameter_value("EQ Q")
+        params['hsh_freq'] = self.get_parameter_value("HSH Freq.")
+        params['hsh_gain'] = self.get_parameter_value("HSH Gain")
+        params['mix'] = self.get_parameter_value("Mix")
+        
+        return params
+    
+    def set_all_parameters(self, params):
+        """Applique tous les paramètres du flanger."""
+        # Flanger parameters
+        if 'wave' in params:
+            self.set_parameter_value("Wave", params['wave'])
+        if 'freq' in params:
+            self.set_parameter_value("Freq.", params['freq'])
+        if 'depth' in params:
+            self.set_parameter_value("Depth", params['depth'])
+        if 'fb_gain' in params:
+            self.set_parameter_value("FB. Gain", params['fb_gain'])
+        if 'mod_delay' in params:
+            self.set_parameter_value("Mod. Delay", params['mod_delay'])
+        if 'lsh_freq' in params:
+            self.set_parameter_value("LSH Freq.", params['lsh_freq'])
+        if 'lsh_gain' in params:
+            self.set_parameter_value("LSH Gain", params['lsh_gain'])
+        if 'eq_freq' in params:
+            self.set_parameter_value("EQ Freq.", params['eq_freq'])
+        if 'eq_gain' in params:
+            self.set_parameter_value("EQ Gain", params['eq_gain'])
+        if 'eq_q' in params:
+            self.set_parameter_value("EQ Q", params['eq_q'])
+        if 'hsh_freq' in params:
+            self.set_parameter_value("HSH Freq.", params['hsh_freq'])
+        if 'hsh_gain' in params:
+            self.set_parameter_value("HSH Gain", params['hsh_gain'])
+        if 'mix' in params:
+            self.set_parameter_value("Mix", params['mix'])
 
 
 class PhaserWidget(BaseEffectWidget):
@@ -208,26 +495,23 @@ class PhaserWidget(BaseEffectWidget):
         title = ttk.Label(self, text="Phaser", font=("Arial", 12, "bold"))
         title.grid(row=0, column=0, columnspan=6, pady=(0, 10))
         
-        # Mix
+        # Stage
         self.create_parameter_widget(
-            "Mix",
-            param_type="spinbox",
-            min_val=0,
-            max_val=100,
-            step=1,
-            suffix=" %",
+            "Stage",
+            param_type="combobox",
+            values=["2", "4", "6", "8", "10", "12", "14", "16"],
             offset=0,
             length=1,
             row=1, column=0
         )
         
-        # Rate
+        # Freq.
         self.create_parameter_widget(
-            "Rate",
+            "Freq.",
             param_type="double_spinbox",
-            min_val=0.1,
-            max_val=20.0,
-            step=0.1,
+            min_val=0.05,
+            max_val=40.0,
+            step=0.05,
             suffix=" Hz",
             offset=1,
             length=1,
@@ -248,30 +532,156 @@ class PhaserWidget(BaseEffectWidget):
             row=2, column=0
         )
         
-        # Feedback
+        # FB. Gain
         self.create_parameter_widget(
-            "Feedback",
+            "FB. Gain",
             param_type="spinbox",
-            min_val=0,
+            min_val=-99,
             max_val=99,
             step=1,
             suffix=" %",
             offset=3,
-            length=1,
+            length=2,
+            conversion="scaleAndAdd(1, -99)",
             row=2, column=2
         )
         
-        # Stages (Nombre d'étages)
+        # Offset
         self.create_parameter_widget(
-            "Stages",
+            "Offset",
             param_type="spinbox",
-            min_val=2,
-            max_val=12,
+            min_val=0,
+            max_val=100,
             step=1,
-            offset=4,
+            offset=5,
             length=1,
             row=3, column=0
         )
+        
+        # Phase
+        self.create_parameter_widget(
+            "Phase",
+            param_type="double_spinbox",
+            min_val=0.0,
+            max_val=354.38,
+            step=0.1,
+            suffix=" deg",
+            offset=6,
+            length=1,
+            row=3, column=2
+        )
+        
+        # LSH Freq.
+        self.create_parameter_widget(
+            "LSH Freq.",
+            param_type="double_spinbox",
+            min_val=21.2,
+            max_val=8000.0,
+            step=10.0,
+            suffix=" Hz",
+            offset=7,
+            length=1,
+            conversion="logScale",
+            row=4, column=0
+        )
+        
+        # LSH Gain
+        self.create_parameter_widget(
+            "LSH Gain",
+            param_type="double_spinbox",
+            min_val=-12.0,
+            max_val=12.0,
+            step=0.1,
+            suffix=" dB",
+            offset=8,
+            length=1,
+            row=4, column=2
+        )
+        
+        # HSH Freq.
+        self.create_parameter_widget(
+            "HSH Freq.",
+            param_type="double_spinbox",
+            min_val=50.0,
+            max_val=16000.0,
+            step=10.0,
+            suffix=" Hz",
+            offset=9,
+            length=1,
+            conversion="logScale",
+            row=5, column=0
+        )
+        
+        # HSH Gain
+        self.create_parameter_widget(
+            "HSH Gain",
+            param_type="double_spinbox",
+            min_val=-12.0,
+            max_val=12.0,
+            step=0.1,
+            suffix=" dB",
+            offset=10,
+            length=1,
+            row=5, column=2
+        )
+        
+        # Mix
+        self.create_parameter_widget(
+            "Mix",
+            param_type="spinbox",
+            min_val=0,
+            max_val=100,
+            step=1,
+            suffix=" %",
+            offset=11,
+            length=1,
+            row=6, column=0
+        )
+    
+    def get_all_parameters(self):
+        """Retourne tous les paramètres du phaser."""
+        params = {}
+        
+        # Phaser parameters
+        params['stage'] = self.get_parameter_value("Stage")
+        params['freq'] = self.get_parameter_value("Freq.")
+        params['depth'] = self.get_parameter_value("Depth")
+        params['fb_gain'] = self.get_parameter_value("FB. Gain")
+        params['offset'] = self.get_parameter_value("Offset")
+        params['phase'] = self.get_parameter_value("Phase")
+        params['lsh_freq'] = self.get_parameter_value("LSH Freq.")
+        params['lsh_gain'] = self.get_parameter_value("LSH Gain")
+        params['hsh_freq'] = self.get_parameter_value("HSH Freq.")
+        params['hsh_gain'] = self.get_parameter_value("HSH Gain")
+        params['mix'] = self.get_parameter_value("Mix")
+        
+        return params
+    
+    def set_all_parameters(self, params):
+        """Applique tous les paramètres du phaser."""
+        # Phaser parameters
+        if 'stage' in params:
+            self.set_parameter_value("Stage", params['stage'])
+        if 'freq' in params:
+            self.set_parameter_value("Freq.", params['freq'])
+        if 'depth' in params:
+            self.set_parameter_value("Depth", params['depth'])
+        if 'fb_gain' in params:
+            self.set_parameter_value("FB. Gain", params['fb_gain'])
+        if 'offset' in params:
+            self.set_parameter_value("Offset", params['offset'])
+        if 'phase' in params:
+            self.set_parameter_value("Phase", params['phase'])
+        if 'lsh_freq' in params:
+            self.set_parameter_value("LSH Freq.", params['lsh_freq'])
+        if 'lsh_gain' in params:
+            self.set_parameter_value("LSH Gain", params['lsh_gain'])
+        if 'hsh_freq' in params:
+            self.set_parameter_value("HSH Freq.", params['hsh_freq'])
+        if 'hsh_gain' in params:
+            self.set_parameter_value("HSH Gain", params['hsh_gain'])
+        if 'mix' in params:
+            self.set_parameter_value("Mix", params['mix'])
 
 
 class TremoloWidget(BaseEffectWidget):
@@ -285,28 +695,25 @@ class TremoloWidget(BaseEffectWidget):
         """Crée l'interface du tremolo."""
         # Titre
         title = ttk.Label(self, text="Tremolo", font=("Arial", 12, "bold"))
-        title.grid(row=0, column=0, columnspan=4, pady=(0, 10))
+        title.grid(row=0, column=0, columnspan=6, pady=(0, 10))
         
-        # Mix
+        # Wave
         self.create_parameter_widget(
-            "Mix",
-            param_type="spinbox",
-            min_val=0,
-            max_val=100,
-            step=1,
-            suffix=" %",
+            "Wave",
+            param_type="combobox",
+            values=["Sine", "Triangle", "Square"],
             offset=0,
             length=1,
             row=1, column=0
         )
         
-        # Rate
+        # Freq.
         self.create_parameter_widget(
-            "Rate",
+            "Freq.",
             param_type="double_spinbox",
-            min_val=0.1,
-            max_val=20.0,
-            step=0.1,
+            min_val=0.05,
+            max_val=40.0,
+            step=0.05,
             suffix=" Hz",
             offset=1,
             length=1,
@@ -327,13 +734,137 @@ class TremoloWidget(BaseEffectWidget):
             row=2, column=0
         )
         
-        # Wave
+        # LSH Freq.
         self.create_parameter_widget(
-            "Wave",
-            param_type="combobox",
-            min_val=["Sine", "Triangle", "Square"],
-            max_val=2,
+            "LSH Freq.",
+            param_type="double_spinbox",
+            min_val=21.2,
+            max_val=8000.0,
+            step=10.0,
+            suffix=" Hz",
             offset=3,
             length=1,
+            conversion="logScale",
             row=2, column=2
         )
+        
+        # LSH Gain
+        self.create_parameter_widget(
+            "LSH Gain",
+            param_type="double_spinbox",
+            min_val=-12.0,
+            max_val=12.0,
+            step=0.1,
+            suffix=" dB",
+            offset=4,
+            length=1,
+            row=3, column=0
+        )
+        
+        # EQ Freq.
+        self.create_parameter_widget(
+            "EQ Freq.",
+            param_type="double_spinbox",
+            min_val=100.0,
+            max_val=8000.0,
+            step=10.0,
+            suffix=" Hz",
+            offset=5,
+            length=1,
+            conversion="logScale",
+            row=3, column=2
+        )
+        
+        # EQ Gain
+        self.create_parameter_widget(
+            "EQ Gain",
+            param_type="double_spinbox",
+            min_val=-12.0,
+            max_val=12.0,
+            step=0.1,
+            suffix=" dB",
+            offset=6,
+            length=1,
+            row=4, column=0
+        )
+        
+        # EQ Q
+        self.create_parameter_widget(
+            "EQ Q",
+            param_type="double_spinbox",
+            min_val=0.10,
+            max_val=10.0,
+            step=0.1,
+            offset=7,
+            length=1,
+            row=4, column=2
+        )
+        
+        # HSH Freq.
+        self.create_parameter_widget(
+            "HSH Freq.",
+            param_type="double_spinbox",
+            min_val=50.0,
+            max_val=16000.0,
+            step=10.0,
+            suffix=" Hz",
+            offset=8,
+            length=1,
+            conversion="logScale",
+            row=5, column=0
+        )
+        
+        # HSH Gain
+        self.create_parameter_widget(
+            "HSH Gain",
+            param_type="double_spinbox",
+            min_val=-12.0,
+            max_val=12.0,
+            step=0.1,
+            suffix=" dB",
+            offset=9,
+            length=1,
+            row=5, column=2
+        )
+    
+    def get_all_parameters(self):
+        """Retourne tous les paramètres du tremolo."""
+        params = {}
+        
+        # Tremolo parameters
+        params['wave'] = self.get_parameter_value("Wave")
+        params['freq'] = self.get_parameter_value("Freq.")
+        params['depth'] = self.get_parameter_value("Depth")
+        params['lsh_freq'] = self.get_parameter_value("LSH Freq.")
+        params['lsh_gain'] = self.get_parameter_value("LSH Gain")
+        params['eq_freq'] = self.get_parameter_value("EQ Freq.")
+        params['eq_gain'] = self.get_parameter_value("EQ Gain")
+        params['eq_q'] = self.get_parameter_value("EQ Q")
+        params['hsh_freq'] = self.get_parameter_value("HSH Freq.")
+        params['hsh_gain'] = self.get_parameter_value("HSH Gain")
+        
+        return params
+    
+    def set_all_parameters(self, params):
+        """Applique tous les paramètres du tremolo."""
+        # Tremolo parameters
+        if 'wave' in params:
+            self.set_parameter_value("Wave", params['wave'])
+        if 'freq' in params:
+            self.set_parameter_value("Freq.", params['freq'])
+        if 'depth' in params:
+            self.set_parameter_value("Depth", params['depth'])
+        if 'lsh_freq' in params:
+            self.set_parameter_value("LSH Freq.", params['lsh_freq'])
+        if 'lsh_gain' in params:
+            self.set_parameter_value("LSH Gain", params['lsh_gain'])
+        if 'eq_freq' in params:
+            self.set_parameter_value("EQ Freq.", params['eq_freq'])
+        if 'eq_gain' in params:
+            self.set_parameter_value("EQ Gain", params['eq_gain'])
+        if 'eq_q' in params:
+            self.set_parameter_value("EQ Q", params['eq_q'])
+        if 'hsh_freq' in params:
+            self.set_parameter_value("HSH Freq.", params['hsh_freq'])
+        if 'hsh_gain' in params:
+            self.set_parameter_value("HSH Gain", params['hsh_gain'])
