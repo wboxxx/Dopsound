@@ -1,0 +1,16 @@
+{
+  "audio_input_device": "Microsoft Sound Mapper - Input (ID: 0)",
+  "audio_output_device": "Microsoft Sound Mapper - Output (ID: 4)",
+  "sample_rate": 44100,
+  "buffer_size": 1024,
+  "audio_channels": 2,
+  "midi_input_device": "Carla2Reaper 0",
+  "midi_output_device": "Microsoft GS Wavetable Synth 0",
+  "midi_channels": [
+    1
+  ],
+  "window_geometry": "1536x889+104+21",
+  "last_target_file": "",
+  "last_di_file": "",
+  "last_effect_type": 13
+}

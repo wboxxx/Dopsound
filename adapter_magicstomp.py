@@ -412,7 +412,7 @@ class MagicstompAdapter:
     
     def calculate_checksum(self, data: List[int]) -> int:
         """
-        Calcule le checksum SysEx pour le Magicstomp.
+        Calcule le checksum SysEx pour le Magicstomp (comme MagicstompFrenzy).
         
         Args:
             data: Données à vérifier
@@ -420,11 +420,71 @@ class MagicstompAdapter:
         Returns:
             Checksum calculé
         """
-        # Checksum simple (XOR de tous les bytes)
+        # Checksum additif avec négation (comme MagicstompFrenzy)
         checksum = 0
         for byte in data:
-            checksum ^= byte
-        return checksum & 0x7F  # Masque sur 7 bits
+            checksum += byte
+        return (-checksum) & 0x7F  # Négatif + masque sur 7 bits
+    
+    def create_realtime_parameter_message(self, offset: int, value: int) -> List[int]:
+        """
+        Crée un message SysEx pour modification temps réel d'un paramètre.
+        Compatible avec le format de MagicstompFrenzy.
+        
+        Args:
+            offset: Position du paramètre dans le patch (0-158)
+            value: Nouvelle valeur du paramètre (0-127)
+            
+        Returns:
+            Message SysEx complet
+        """
+        # Header pour modification temps réel (comme MagicstompFrenzy)
+        message = [
+            0xF0, 0x43, 0x7D, 0x40, 0x55, 0x42,  # Header temps réel
+            0x20,  # Commande modification paramètre
+        ]
+        
+        # Détermine la section (commune ou effet)
+        PATCH_COMMON_LENGTH = 0x20  # 32 bytes
+        if offset < PATCH_COMMON_LENGTH:
+            message.append(0x00)  # Section commune
+            message.append(offset)
+        else:
+            message.append(0x01)  # Section effet
+            message.append(offset - PATCH_COMMON_LENGTH)
+        
+        # Ajoute la valeur
+        message.append(value)
+        
+        # Calcule et ajoute le checksum
+        checksum = self.calculate_checksum(message[1:])  # Exclut le F0
+        message.append(checksum)
+        
+        # Footer
+        message.append(0xF7)
+        
+        return message
+    
+    def tweak_parameter(self, offset: int, value: int, midi_port=None):
+        """
+        Modifie un paramètre en temps réel.
+        
+        Args:
+            offset: Position du paramètre (0-158)
+            value: Nouvelle valeur (0-127)
+            midi_port: Port MIDI à utiliser (optionnel)
+        """
+        if not midi_port:
+            print("❌ Port MIDI requis pour tweak_parameter")
+            return
+        
+        try:
+            message = self.create_realtime_parameter_message(offset, value)
+            # Envoie le message (exclut F0 et F7 pour mido)
+            midi_port.send(mido.Message('sysex', data=message[1:-1]))
+            print(f"📤 Paramètre temps réel envoyé: offset {offset} = {value}")
+        except Exception as e:
+            print(f"❌ Erreur envoi paramètre temps réel: {e}")
     
     def json_to_syx(self, patch_json: Union[Dict[str, Any], str], 
                    patch_number: int = 0) -> List[int]:

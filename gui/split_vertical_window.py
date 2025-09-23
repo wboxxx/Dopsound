@@ -94,7 +94,7 @@ class SplitVerticalGUI:
         self.impact_visualizer = None
         
         # MIDI/Sysex communication
-        self.realtime_magicstomp = RealtimeMagicstomp()
+        self.realtime_magicstomp = RealtimeMagicstomp(auto_detect=True)
         
         # Create reverse mapping: parameter name -> offset
         self.parameter_to_offset = {v: k for k, v in EFFECT_PARAMETERS.items()}
@@ -1230,8 +1230,7 @@ class SplitVerticalGUI:
     def init_midi_connection(self):
         """Initialize MIDI connection to Magicstomp."""
         try:
-            # Try to connect to Magicstomp
-            self.realtime_magicstomp.connect()
+            # RealtimeMagicstomp is already initialized with auto_detect=True
             if self.realtime_magicstomp.output_port:
                 self.log_status("✅ MIDI connection to Magicstomp established")
             else:
