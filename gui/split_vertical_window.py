@@ -181,6 +181,9 @@ class SplitVerticalGUI:
         # Create right panel content (status/logs)
         self.create_status_panel()
         
+        # Restore application state after interface is created
+        self.restore_application_state()
+        
         # Initialize devices after status panel is created
         self.initialize_devices()
     
@@ -245,9 +248,26 @@ class SplitVerticalGUI:
                         self.di_var.set(f"DI: {Path(self.di_file).name}")
                     self.log_status(f"📁 Restored DI: {Path(self.di_file).name}")
                 
+                # Load application state
+                if 'last_active_tab' in settings:
+                    self.last_active_tab = settings['last_active_tab']
+                else:
+                    self.last_active_tab = 0
+                    
+                if 'last_loaded_patch' in settings and settings['last_loaded_patch']:
+                    self.last_loaded_patch = settings['last_loaded_patch']
+                else:
+                    self.last_loaded_patch = None
+                
+                # Load last effect type
+                if 'last_effect_type' in settings:
+                    self.current_effect_type = settings['last_effect_type']
+                
                 self.log_status("✅ Settings loaded successfully")
             else:
                 self.log_status("ℹ️ No settings file found - using defaults")
+                self.last_active_tab = 0
+                self.last_loaded_patch = None
                 
         except Exception as e:
             self.log_status(f"⚠️ Error loading settings: {e}")
@@ -275,6 +295,46 @@ class SplitVerticalGUI:
         except Exception as e:
             print(f"🔍 DEBUG: Error saving file selections: {e}")
     
+    def get_current_tab_index(self):
+        """Get the index of the currently active tab."""
+        try:
+            if hasattr(self, 'notebook') and self.notebook:
+                return self.notebook.index(self.notebook.select())
+            return 0
+        except:
+            return 0
+    
+    def restore_application_state(self):
+        """Restore application state from saved settings."""
+        try:
+            # Restore active tab
+            if hasattr(self, 'last_active_tab') and hasattr(self, 'notebook'):
+                if 0 <= self.last_active_tab < self.notebook.index('end'):
+                    self.notebook.select(self.last_active_tab)
+                    self.log_status(f"🔄 Restored tab {self.last_active_tab}")
+            
+            # Restore loaded patch
+            if hasattr(self, 'last_loaded_patch') and self.last_loaded_patch:
+                self.current_patch = self.last_loaded_patch
+                self.log_status(f"🔄 Restored patch: {self.last_loaded_patch.get('meta', {}).get('name', 'Unknown')}")
+                
+                # Auto-apply the restored patch
+                if hasattr(self, 'auto_apply_patch') and self.auto_apply_patch:
+                    self.auto_apply_patch_to_widgets()
+                    
+        except Exception as e:
+            self.log_status(f"⚠️ Error restoring application state: {e}")
+            print(f"🔍 DEBUG: Error restoring state: {e}")
+    
+    def on_tab_changed(self, event=None):
+        """Handle tab change event - save current state."""
+        try:
+            # Save current tab index
+            if hasattr(self, 'notebook'):
+                self.save_settings()
+        except Exception as e:
+            print(f"🔍 DEBUG: Error saving state on tab change: {e}")
+    
     def save_settings(self):
         """Save current settings to file."""
         try:
@@ -300,6 +360,10 @@ class SplitVerticalGUI:
                 
                 # Current effect
                 'last_effect_type': self.current_effect_type,
+                
+                # Application state
+                'last_active_tab': self.get_current_tab_index(),
+                'last_loaded_patch': self.current_patch if hasattr(self, 'current_patch') and self.current_patch else None,
             }
             
             with open(self.settings_file, 'w') as f:
@@ -350,6 +414,9 @@ class SplitVerticalGUI:
         # Main notebook in left panel
         self.notebook = ttk.Notebook(self.left_panel)
         self.notebook.pack(fill=tk.BOTH, expand=True)
+        
+        # Bind tab change event to save state
+        self.notebook.bind('<<NotebookTabChanged>>', self.on_tab_changed)
         
         # Create tabs following natural workflow
         self.create_target_analysis_tab()
@@ -1450,6 +1517,9 @@ File: {Path(self.target_file).name}"""
             # Save the target file used for this patch
             self.save_last_file_selections()
             
+            # Save state after generating patch
+            self.save_settings()
+            
             # Try to apply patch to current effect widget if available
             if self.current_effect_widget and hasattr(self.current_effect_widget, 'set_all_parameters'):
                 try:
@@ -2160,6 +2230,9 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                 
                 # Display patch parameters
                 self.display_patch_parameters()
+                
+                # Save state after loading patch
+                self.save_settings()
                 
                 # Try to identify and auto-load effects from patch
                 print(f"🔍 DEBUG: About to auto-load effects from patch: {self.current_patch}")
