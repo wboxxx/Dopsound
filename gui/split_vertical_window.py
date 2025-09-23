@@ -965,6 +965,7 @@ class SplitVerticalGUI:
         self.midi_input_combo = ttk.Combobox(midi_input_frame, textvariable=self.midi_input_var,
                                             state="readonly", width=40)
         self.midi_input_combo.pack(side=tk.LEFT, padx=(0, 10))
+        self.midi_input_combo.bind('<<ComboboxSelected>>', self.on_midi_input_changed)
         
         refresh_midi_btn = ttk.Button(midi_input_frame, text="🔄 Refresh", 
                                      command=self.refresh_midi_devices)
@@ -981,6 +982,7 @@ class SplitVerticalGUI:
         self.midi_output_combo = ttk.Combobox(midi_output_frame, textvariable=self.midi_output_var,
                                              state="readonly", width=40)
         self.midi_output_combo.pack(side=tk.LEFT, padx=(0, 10))
+        self.midi_output_combo.bind('<<ComboboxSelected>>', self.on_midi_output_changed)
         
         # MIDI Channels
         midi_channels_frame = ttk.Frame(midi_frame)
@@ -1000,6 +1002,9 @@ class SplitVerticalGUI:
             cb = ttk.Checkbutton(channels_grid, text=f"Ch{i}", variable=var,
                                 command=lambda ch=i: self.update_midi_channels(ch))
             cb.grid(row=(i-1)//4, column=(i-1)%4, padx=5, pady=2, sticky='w')
+        
+        # Recharge les paramètres MIDI après création des widgets
+        self.reload_midi_settings()
         
         # Test Audio Button
         test_audio_frame = ttk.LabelFrame(self.settings_frame, text="🎧 Test Audio", padding=10)
@@ -3590,6 +3595,86 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
         except Exception as e:
             self.log_status(f"❌ Error refreshing audio devices: {e}")
     
+    def reload_midi_settings(self):
+        """Recharge les paramètres MIDI depuis le fichier de configuration."""
+        try:
+            if self.settings_file.exists():
+                with open(self.settings_file, 'r') as f:
+                    settings = json.load(f)
+                
+                # Recharge les paramètres MIDI
+                if 'midi_input_device' in settings and hasattr(self, 'midi_input_var'):
+                    self.midi_input_var.set(settings['midi_input_device'])
+                    print(f"🔍 DEBUG: Reloaded MIDI input: {settings['midi_input_device']}")
+                
+                if 'midi_output_device' in settings and hasattr(self, 'midi_output_var'):
+                    self.midi_output_var.set(settings['midi_output_device'])
+                    print(f"🔍 DEBUG: Reloaded MIDI output: {settings['midi_output_device']}")
+                    
+                    # Mise à jour automatique du port RealtimeMagicstomp
+                    if hasattr(self, 'realtime_magicstomp') and settings['midi_output_device']:
+                        self.update_realtime_magicstomp_port(settings['midi_output_device'])
+                
+                if 'midi_channels' in settings and hasattr(self, 'midi_channel_vars'):
+                    # Reset all channels first
+                    for var in self.midi_channel_vars.values():
+                        var.set(False)
+                    # Restore selected channels
+                    for channel in settings['midi_channels']:
+                        if channel in self.midi_channel_vars:
+                            self.midi_channel_vars[channel].set(True)
+                    self.midi_channels = settings['midi_channels']
+                    print(f"🔍 DEBUG: Reloaded MIDI channels: {settings['midi_channels']}")
+                
+        except Exception as e:
+            print(f"🔍 DEBUG: Error reloading MIDI settings: {e}")
+    
+    def update_realtime_magicstomp_port(self, port_name):
+        """Met à jour le port MIDI de RealtimeMagicstomp."""
+        try:
+            if hasattr(self, 'realtime_magicstomp') and self.realtime_magicstomp:
+                # Ferme l'ancien port s'il existe
+                if self.realtime_magicstomp.output_port:
+                    self.realtime_magicstomp.output_port.close()
+                
+                # Se connecte au nouveau port
+                self.realtime_magicstomp.midi_port_name = port_name
+                self.realtime_magicstomp._connect_to_port(port_name)
+                
+                if self.realtime_magicstomp.output_port:
+                    print(f"✅ RealtimeMagicstomp connecté au port: {port_name}")
+                    self.log_status(f"✅ MIDI connecté: {port_name}")
+                else:
+                    print(f"❌ Échec connexion RealtimeMagicstomp au port: {port_name}")
+                    self.log_status(f"❌ Échec connexion MIDI: {port_name}")
+                    
+        except Exception as e:
+            print(f"❌ Erreur mise à jour port RealtimeMagicstomp: {e}")
+    
+    def on_midi_input_changed(self, event=None):
+        """Callback quand le port MIDI input change."""
+        try:
+            port_name = self.midi_input_var.get()
+            print(f"🔍 DEBUG: MIDI input changed to: {port_name}")
+            self.save_settings()  # Sauvegarde automatique
+        except Exception as e:
+            print(f"❌ Erreur changement MIDI input: {e}")
+    
+    def on_midi_output_changed(self, event=None):
+        """Callback quand le port MIDI output change."""
+        try:
+            port_name = self.midi_output_var.get()
+            print(f"🔍 DEBUG: MIDI output changed to: {port_name}")
+            
+            # Met à jour RealtimeMagicstomp
+            self.update_realtime_magicstomp_port(port_name)
+            
+            # Sauvegarde automatique
+            self.save_settings()
+            
+        except Exception as e:
+            print(f"❌ Erreur changement MIDI output: {e}")
+    
     def refresh_midi_devices(self):
         """Refresh MIDI device list."""
         try:
@@ -3603,11 +3688,38 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
             self.midi_input_combo['values'] = input_names
             self.midi_output_combo['values'] = output_names
             
-            # Set default selections
+            # Auto-detect Magicstomp and set default selections
+            magicstomp_output = None
+            magicstomp_input = None
+            
+            # Recherche Magicstomp dans les ports de sortie
+            for port in output_names:
+                if 'ub9' in port.lower() or 'magicstomp' in port.lower():
+                    magicstomp_output = port
+                    break
+            
+            # Recherche Magicstomp dans les ports d'entrée
+            for port in input_names:
+                if 'ub9' in port.lower() or 'magicstomp' in port.lower():
+                    magicstomp_input = port
+                    break
+            
+            # Définit les sélections par défaut
             if input_names and not self.midi_input_var.get():
-                self.midi_input_var.set(input_names[0])
+                if magicstomp_input:
+                    self.midi_input_var.set(magicstomp_input)
+                    print(f"🔍 DEBUG: Auto-selected Magicstomp input: {magicstomp_input}")
+                else:
+                    self.midi_input_var.set(input_names[0])
+                    
             if output_names and not self.midi_output_var.get():
-                self.midi_output_var.set(output_names[0])
+                if magicstomp_output:
+                    self.midi_output_var.set(magicstomp_output)
+                    print(f"🔍 DEBUG: Auto-selected Magicstomp output: {magicstomp_output}")
+                    # Met à jour RealtimeMagicstomp automatiquement
+                    self.update_realtime_magicstomp_port(magicstomp_output)
+                else:
+                    self.midi_output_var.set(output_names[0])
             
             self.log_status(f"🔄 Found {len(input_names)} MIDI input, {len(output_names)} MIDI output devices")
             
