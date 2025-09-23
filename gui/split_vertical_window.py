@@ -2493,9 +2493,9 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                     
                     if (self.current_patch and self.effect_widget_cascade) or getattr(self, 'auto_apply_restored_patch', False):
                         print(f"🔍 DEBUG: All conditions met, proceeding with auto-apply")
-                        if getattr(self, 'auto_apply_restored_patch', False):
+                        is_restored_patch = getattr(self, 'auto_apply_restored_patch', False)
+                        if is_restored_patch:
                             print(f"🔍 DEBUG: Auto-applying restored patch to widgets")
-                            self.auto_apply_restored_patch = False  # Reset flag
                         widget_params = self.convert_patch_to_widget_params(self.current_patch)
                         print(f"🔍 DEBUG: Converted widget params: {widget_params}")
                         
@@ -2532,6 +2532,11 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                             self.log_status("💡 Go to Effects tab to see the visual representation!")
                             self.log_status("💡 Go to Analysis tab to see the parameter impacts!")
                             print(f"🔍 DEBUG: Auto-applied patch parameters: {widget_params}")
+                            
+                            # Reset the flag only after successful application
+                            if is_restored_patch:
+                                self.auto_apply_restored_patch = False
+                                print(f"🔍 DEBUG: Reset auto_apply_restored_patch flag after successful application")
                             
                             # Debug current state
                             print(f"🔍 DEBUG: Current effect widget: {self.current_effect_widget}")
