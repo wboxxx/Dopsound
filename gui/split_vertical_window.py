@@ -208,23 +208,23 @@ class SplitVerticalGUI:
                     settings = json.load(f)
                 
                 # Load audio settings
-                if 'audio_input_device' in settings:
+                if 'audio_input_device' in settings and hasattr(self, 'audio_input_var'):
                     self.audio_input_var.set(settings['audio_input_device'])
-                if 'audio_output_device' in settings:
+                if 'audio_output_device' in settings and hasattr(self, 'audio_output_var'):
                     self.audio_output_var.set(settings['audio_output_device'])
-                if 'sample_rate' in settings:
+                if 'sample_rate' in settings and hasattr(self, 'sample_rate_var'):
                     self.sample_rate_var.set(str(settings['sample_rate']))
-                if 'buffer_size' in settings:
+                if 'buffer_size' in settings and hasattr(self, 'buffer_size_var'):
                     self.buffer_size_var.set(str(settings['buffer_size']))
-                if 'audio_channels' in settings:
+                if 'audio_channels' in settings and hasattr(self, 'audio_channels_var'):
                     self.audio_channels_var.set(str(settings['audio_channels']))
                 
                 # Load MIDI settings
-                if 'midi_input_device' in settings:
+                if 'midi_input_device' in settings and hasattr(self, 'midi_input_var'):
                     self.midi_input_var.set(settings['midi_input_device'])
-                if 'midi_output_device' in settings:
+                if 'midi_output_device' in settings and hasattr(self, 'midi_output_var'):
                     self.midi_output_var.set(settings['midi_output_device'])
-                if 'midi_channels' in settings:
+                if 'midi_channels' in settings and hasattr(self, 'midi_channel_vars'):
                     # Restore MIDI channel selections
                     for channel in settings['midi_channels']:
                         if channel in self.midi_channel_vars:
