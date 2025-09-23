@@ -2918,10 +2918,14 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
             
             # Send to device
             print(f"🔍 DEBUG: Sending to MIDI port: {midi_output}")
-            adapter.send_to_device(syx_data, midi_output)
+            success = adapter.send_to_device(syx_data, midi_output)
             
-            self.log_status("✅ Patch sent to Magicstomp successfully!")
-            print("🔍 DEBUG: Patch sent successfully")
+            if success:
+                self.log_status("✅ Patch sent to Magicstomp successfully!")
+                print("🔍 DEBUG: Patch sent successfully")
+            else:
+                self.log_status("❌ Failed to send patch to Magicstomp")
+                print("🔍 DEBUG: Patch send failed")
             
         except Exception as e:
             self.log_status(f"❌ Error sending patch: {e}")
