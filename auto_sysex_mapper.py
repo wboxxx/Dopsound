@@ -13,6 +13,15 @@ Usage rapide::
 
 Cela génère ``sysex_map.json`` contenant toutes les informations de mapping et
 affiche également un résumé lisible dans la console.
+
+Le script sait aussi filtrer le résumé pour retrouver rapidement un message
+SysEx précis :
+
+    python auto_sysex_mapper.py --effect Delay --parameter "Delay Level" --value 96
+
+Ici, seule l'entrée du paramètre « Delay Level » est affichée et le message
+SysEx correspond à la valeur 96.
+
 """
 
 from __future__ import annotations
@@ -237,44 +246,121 @@ def generate_mapping(sample_value: int) -> Dict[str, object]:
     return mapping
 
 
-def print_summary(mapping: Dict[str, object]) -> None:
-    """Affiche un résumé lisible du mapping SysEx."""
+def _matches_filter(value: str, filter_value: Optional[str]) -> bool:
+    return not filter_value or filter_value in value.lower()
+
+
+def print_summary(
+    mapping: Dict[str, object],
+    *,
+    effect_filter: Optional[str] = None,
+    parameter_filter: Optional[str] = None,
+    include_common: bool = True,
+    include_global: bool = True,
+    include_effects: bool = True,
+) -> None:
+    """Affiche un résumé lisible (avec filtres optionnels) du mapping SysEx."""
+
+    effect_filter = effect_filter.lower() if effect_filter else None
+    parameter_filter = parameter_filter.lower() if parameter_filter else None
+
 
     print("🎛️  Magicstomp SysEx Mapping Generator")
     print("=" * 50)
     print(f"Sample value used for examples: {mapping['sample_value']}")
     print()
 
-    print("📂 Common parameters")
-    for entry in mapping["common_parameters"]:
-        print(
-            f"  - Offset 0x{entry['global_offset']:02X}"
-            f" → {entry['label']} | SysEx: {entry['sysex_hex']}"
-        )
+    matches_found = False
 
-    print()
-    print("📂 Generic effect parameters (MagicstompFrenzy map)")
-    for entry in mapping["global_effect_parameters"]:
-        print(
-            f"  - Effect offset 0x{entry['effect_offset']:02X}"
-            f" (global 0x{entry['global_offset']:02X})"
-            f" → {entry['label']} | SysEx: {entry['sysex_hex']}"
-        )
+    if include_common:
+        filtered_entries = [
+            entry
+            for entry in mapping["common_parameters"]
+            if _matches_filter(entry["label"].lower(), parameter_filter)
+        ]
+        if filtered_entries:
+            matches_found = True
+            print("📂 Common parameters")
+            for entry in filtered_entries:
+                print(
+                    f"  - Offset 0x{entry['global_offset']:02X}"
+                    f" → {entry['label']} | SysEx: {entry['sysex_hex']}"
+                )
+            print()
 
-    print()
-    print("🎚️  Effect-specific parameters")
-    for effect_name, info in mapping["effects"].items():
-        header = f"- {info['friendly_name']}"
-        if info["effect_id_hex"]:
-            header += f" (ID {info['effect_id_hex']})"
-        print(header)
-        for entry in info["parameters"]:
-            print(
-                f"    • offset 0x{entry['effect_offset']:02X}"
-                f" (global 0x{entry['global_offset']:02X})"
-                f" → {entry['label']} | {entry['sysex_hex']}"
+    if include_global:
+        filtered_entries = [
+            entry
+            for entry in mapping["global_effect_parameters"]
+            if _matches_filter(entry["label"].lower(), parameter_filter)
+        ]
+        if filtered_entries:
+            matches_found = True
+            print("📂 Generic effect parameters (MagicstompFrenzy map)")
+            for entry in filtered_entries:
+                print(
+                    f"  - Effect offset 0x{entry['effect_offset']:02X}"
+                    f" (global 0x{entry['global_offset']:02X})"
+                    f" → {entry['label']} | SysEx: {entry['sysex_hex']}"
+                )
+            print()
+
+    if include_effects:
+        printed_any_effect = False
+        effect_candidates = False
+        for effect_name, info in mapping["effects"].items():
+            matches_effect = not effect_filter or (
+                _matches_filter(effect_name.lower(), effect_filter)
+                or _matches_filter(info["friendly_name"].lower(), effect_filter)
             )
-        print()
+            if not matches_effect:
+                continue
+
+            effect_candidates = True
+            filtered_entries = [
+                entry
+                for entry in info["parameters"]
+                if _matches_filter(entry["label"].lower(), parameter_filter)
+            ]
+            if not filtered_entries:
+                continue
+
+            matches_found = True
+            printed_any_effect = True
+            header = f"- {info['friendly_name']}"
+            if info["effect_id_hex"]:
+                header += f" (ID {info['effect_id_hex']})"
+            print(header)
+            for entry in filtered_entries:
+                print(
+                    f"    • offset 0x{entry['effect_offset']:02X}"
+                    f" (global 0x{entry['global_offset']:02X})"
+                    f" → {entry['label']} | {entry['sysex_hex']}"
+                )
+            print()
+
+        if include_effects:
+            if effect_filter and not effect_candidates:
+                matches_found = True
+                print("Aucun effet ne correspond au filtre donné.")
+            elif (
+                effect_filter
+                and parameter_filter
+                and effect_candidates
+                and not printed_any_effect
+            ):
+                matches_found = True
+                print(
+                    "Les effets correspondent au filtre, mais aucun paramètre ne"
+                    " vérifie le filtre demandé."
+                )
+
+    if not matches_found:
+        if parameter_filter or effect_filter:
+            print("Aucun paramètre ne correspond aux filtres fournis.")
+        else:
+            print("(Aucun paramètre trouvé – vérifiez les données source.)")
+
 
 
 def main() -> None:
@@ -300,13 +386,46 @@ def main() -> None:
         default=64,
         help="Valeur (0-127) utilisée dans les exemples de messages SysEx.",
     )
+    parser.add_argument(
+        "--effect",
+        type=str,
+        help="Filtre sur le nom d'effet (insensible à la casse).",
+    )
+    parser.add_argument(
+        "--parameter",
+        type=str,
+        help="Filtre sur le nom du paramètre (insensible à la casse).",
+    )
+    parser.add_argument(
+        "--no-common",
+        action="store_true",
+        help="Masque la section des paramètres communs.",
+    )
+    parser.add_argument(
+        "--no-global",
+        action="store_true",
+        help="Masque les paramètres d'effet génériques.",
+    )
+    parser.add_argument(
+        "--no-effects",
+        action="store_true",
+        help="Masque les paramètres spécifiques à chaque effet.",
+    )
+
 
     args = parser.parse_args()
 
     sample_value = max(0, min(127, args.value))
     mapping = generate_mapping(sample_value)
 
-    print_summary(mapping)
+    print_summary(
+        mapping,
+        effect_filter=args.effect,
+        parameter_filter=args.parameter,
+        include_common=not args.no_common,
+        include_global=not args.no_global,
+        include_effects=not args.no_effects,
+    )
 
     if args.output:
         json_kwargs = {"indent": 2, "ensure_ascii": False} if args.pretty else {}
