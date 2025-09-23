@@ -585,6 +585,15 @@ class MagicstompAdapter:
                 else:
                     raise
             
+        except SystemError as e:
+            if "already open" in str(e).lower() or "error creating" in str(e).lower():
+                print(f"⚠️ Port MIDI déjà ouvert: {e}")
+                print("💡 CONSEIL: Fermez d'autres applications utilisant le port MIDI")
+                print("💡 CONSEIL: Redémarrez l'application si le problème persiste")
+                return False
+            else:
+                print(f"❌ Erreur système MIDI: {e}")
+                return False
         except Exception as e:
             print(f"❌ Erreur lors de l'envoi: {e}")
             print(f"🔍 DEBUG: Exception type: {type(e).__name__}")
