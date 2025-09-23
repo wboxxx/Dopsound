@@ -255,8 +255,23 @@ class BaseEffectWidget(ttk.Frame):
         # Trouve le widget correspondant
         for child in self.winfo_children():
             if hasattr(child, 'param_name') and child.param_name == param_name:
-                child.delete(0, tk.END)
-                child.insert(0, str(value))
+                # Met à jour la valeur du widget selon son type
+                if hasattr(child, 'param_type'):
+                    if child.param_type == "double_spinbox":
+                        child.set(value)
+                    elif child.param_type == "combobox":
+                        child.set(value)
+                    else:  # spinbox
+                        child.set(int(value))
+                else:
+                    # Fallback: try set method first, then delete/insert
+                    try:
+                        child.set(value)
+                    except AttributeError:
+                        # For Entry widgets
+                        child.delete(0, tk.END)
+                        child.insert(0, str(value))
+                
                 self.current_params[param_name] = value
                 break
     
