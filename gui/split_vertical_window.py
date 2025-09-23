@@ -310,6 +310,9 @@ class SplitVerticalGUI:
             print("🔍 DEBUG: Starting restore_application_state()")
             print(f"🔍 DEBUG: last_active_tab = {getattr(self, 'last_active_tab', 'NOT SET')}")
             print(f"🔍 DEBUG: last_loaded_patch = {getattr(self, 'last_loaded_patch', 'NOT SET')}")
+            print(f"🔍 DEBUG: notebook exists: {hasattr(self, 'notebook')}")
+            if hasattr(self, 'notebook'):
+                print(f"🔍 DEBUG: notebook tabs count: {self.notebook.index('end')}")
             
             # Restore active tab
             if hasattr(self, 'last_active_tab') and hasattr(self, 'notebook'):
@@ -392,9 +395,11 @@ class SplitVerticalGUI:
                 'last_loaded_patch': self.current_patch if hasattr(self, 'current_patch') and self.current_patch else None,
             }
             
+            print(f"🔍 DEBUG: Writing to settings file: {self.settings_file}")
             with open(self.settings_file, 'w') as f:
                 json.dump(settings, f, indent=2)
             
+            print(f"🔍 DEBUG: Settings file written successfully")
             self.log_status("✅ Settings saved successfully")
             
         except Exception as e:
