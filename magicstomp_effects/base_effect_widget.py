@@ -142,6 +142,47 @@ class BaseEffectWidget(ttk.Frame):
         except (ValueError, AttributeError) as e:
             print(f"Erreur lors du changement de paramètre: {e}")
     
+    def set_parameter_value(self, param_name: str, value: Any):
+        """Définit la valeur d'un paramètre par nom."""
+        # Trouve le widget correspondant au paramètre
+        for child in self.winfo_children():
+            if hasattr(child, 'param_name') and child.param_name == param_name:
+                # Met à jour la valeur du widget
+                if child.param_type == "double_spinbox":
+                    child.set(value)
+                elif child.param_type == "combobox":
+                    child.set(value)
+                else:  # spinbox
+                    child.set(int(value))
+                
+                # Met à jour les paramètres internes
+                self.current_params[param_name] = value
+                return
+        
+        # Si le widget n'est pas trouvé, met juste à jour les paramètres
+        self.current_params[param_name] = value
+    
+    def get_parameter_value(self, param_name: str) -> Any:
+        """Récupère la valeur d'un paramètre par nom."""
+        # Cherche d'abord dans les paramètres stockés
+        if param_name in self.current_params:
+            return self.current_params[param_name]
+        
+        # Sinon, cherche dans les widgets
+        for child in self.winfo_children():
+            if hasattr(child, 'param_name') and child.param_name == param_name:
+                try:
+                    if child.param_type == "double_spinbox":
+                        return float(child.get())
+                    elif child.param_type == "combobox":
+                        return child.get()
+                    else:  # spinbox
+                        return int(child.get())
+                except (ValueError, AttributeError):
+                    return 0
+        
+        return 0  # Valeur par défaut
+    
     def _convert_to_magicstomp(self, widget: tk.Widget, value: Any) -> int:
         """
         Convertit une valeur utilisateur vers le format Magicstomp.
