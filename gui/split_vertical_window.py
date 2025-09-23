@@ -341,11 +341,8 @@ class SplitVerticalGUI:
                 self.log_status(f"🔄 Restored patch: {self.last_loaded_patch.get('meta', {}).get('name', 'Unknown')}")
                 
                 # Auto-apply the restored patch
-                if hasattr(self, 'auto_apply_patch') and self.auto_apply_patch:
-                    print("🔍 DEBUG: Auto-applying restored patch to widgets")
-                    self.auto_apply_patch_to_widgets()
-                else:
-                    print("🔍 DEBUG: Auto-apply disabled or not available")
+                print("🔍 DEBUG: Auto-applying restored patch to widgets")
+                self.apply_patch_to_effects()
             else:
                 print("🔍 DEBUG: No patch to restore")
                 # Ensure current_patch is None if no patch to restore
