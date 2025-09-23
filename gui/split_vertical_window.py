@@ -67,6 +67,9 @@ class SplitVerticalGUI:
         self.live_di_stream = None
         self.analysis_data = {}
         
+        # Effect cascade management
+        self.effect_widget_cascade = []
+        
         # Audio/MIDI settings
         self.audio_input_device = None
         self.audio_output_device = None
@@ -2461,12 +2464,12 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
             print(f"🔍 DEBUG: Starting load_effect_widget_by_type: {effect_type}")
             
             # Load the effect widget
-            success = self.load_effect_widget_by_type(effect_type)
+            effect_widget = self.load_effect_widget_by_type(effect_type)
             
-            if success:
+            if effect_widget:
                 print(f"🔍 DEBUG: Successfully added {effect_name} to cascade")
                 # Update current effect to the last loaded one
-                self.current_effect_widget = self.get_last_effect_widget()
+                self.current_effect_widget = effect_widget
                 return True
             else:
                 print(f"🔍 DEBUG: Failed to add {effect_name} to cascade")
@@ -2614,9 +2617,13 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                     print(f"🔍 DEBUG: Widget children: {effect_widget.winfo_children()}")
                     print(f"🔍 DEBUG: Widget children count: {len(effect_widget.winfo_children())}")
                 
+                # Add widget to cascade
+                self.effect_widget_cascade.append(effect_widget)
+                print(f"🔍 DEBUG: Added widget to cascade. Cascade size: {len(self.effect_widget_cascade)}")
+                
                 print(f"🔍 DEBUG: Successfully loaded effect widget type {effect_type}")
                 print(f"🔍 DEBUG: Created effect widget: {effect_widget}")
-                return True
+                return effect_widget
             else:
                 print(f"🔍 DEBUG: Effect class not found for type {effect_type}")
                 print(f"🔍 DEBUG: Available effects in registry: {list(EffectRegistry.EFFECT_WIDGETS.keys())}")
@@ -2899,7 +2906,11 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
             
             # Close MIDI connection
             if hasattr(self, 'realtime_magicstomp'):
-                self.realtime_magicstomp.disconnect()
+                # Close MIDI ports
+                if hasattr(self.realtime_magicstomp, 'output_port') and self.realtime_magicstomp.output_port:
+                    self.realtime_magicstomp.output_port.close()
+                if hasattr(self.realtime_magicstomp, 'input_port') and self.realtime_magicstomp.input_port:
+                    self.realtime_magicstomp.input_port.close()
             
             # Save settings before closing
             self.save_settings()
