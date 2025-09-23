@@ -263,6 +263,14 @@ class SplitVerticalGUI:
                 if 'last_effect_type' in settings:
                     self.current_effect_type = settings['last_effect_type']
                 
+                # Load current patch
+                if 'last_loaded_patch' in settings and settings['last_loaded_patch']:
+                    self.current_patch = settings['last_loaded_patch']
+                    print(f"🔍 DEBUG: Loaded current_patch from settings: {self.current_patch.get('meta', {}).get('name', 'Unknown')}")
+                else:
+                    self.current_patch = None
+                    print("🔍 DEBUG: No current_patch in settings, set to None")
+                
                 self.log_status("✅ Settings loaded successfully")
             else:
                 self.log_status("ℹ️ No settings file found - using defaults")
