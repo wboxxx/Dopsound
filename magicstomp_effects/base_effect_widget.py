@@ -286,6 +286,122 @@ class BaseEffectWidget(ttk.Frame):
     def get_all_parameters(self) -> Dict[str, Any]:
         """Récupère tous les paramètres actuels."""
         return self.current_params.copy()
+
+    # ------------------------------------------------------------------
+    #  Chargement depuis les données Magicstomp
+    # ------------------------------------------------------------------
+
+    def apply_magicstomp_data(self, effect_data: Any) -> Dict[str, Any]:
+        """Applique les valeurs reçues d'un patch Magicstomp sur le widget."""
+
+        if effect_data is None:
+            return {}
+
+        if isinstance(effect_data, bytes):
+            data = [b for b in effect_data]
+        else:
+            data = list(effect_data)
+
+        applied_params: Dict[str, Any] = {}
+
+        for widget in self._iter_parameter_widgets(self):
+            offset = getattr(widget, "offset", None)
+            length = getattr(widget, "length", 1)
+            param_name = getattr(widget, "param_name", None)
+
+            if param_name is None or offset is None:
+                continue
+
+            if offset < 0 or offset + length > len(data):
+                continue
+
+            raw_bytes = data[offset : offset + max(1, length)]
+            if not raw_bytes:
+                continue
+
+            raw_value = self._decode_sysex_value(raw_bytes)
+            user_value = self._convert_from_magicstomp(widget, raw_value)
+
+            # Clamp aux limites du widget si disponibles
+            min_val = getattr(widget, "min_val", None)
+            max_val = getattr(widget, "max_val", None)
+            if isinstance(user_value, (int, float)):
+                if min_val is not None:
+                    user_value = max(min_val, user_value)
+                if max_val is not None:
+                    user_value = min(max_val, user_value)
+
+            # Gestion spéciale des combobox : map index → valeur affichée
+            if getattr(widget, "param_type", None) == "combobox":
+                values = widget.cget("values") if hasattr(widget, "cget") else None
+                if isinstance(values, (list, tuple)) and isinstance(user_value, int):
+                    if 0 <= user_value < len(values):
+                        user_value = values[user_value]
+
+            self.set_parameter_value(param_name, user_value)
+            applied_params[param_name] = user_value
+
+        return applied_params
+
+    def _iter_parameter_widgets(self, container: tk.Widget):
+        for child in container.winfo_children():
+            if hasattr(child, "param_name") and hasattr(child, "offset"):
+                yield child
+            if hasattr(child, "winfo_children"):
+                yield from self._iter_parameter_widgets(child)
+
+    @staticmethod
+    def _decode_sysex_value(raw_bytes: Any) -> int:
+        value = 0
+        for byte in raw_bytes:
+            value = (value << 7) | (byte & 0x7F)
+        return value
+
+    def _convert_from_magicstomp(self, widget: tk.Widget, raw_value: int) -> Any:
+        conversion = getattr(widget, "conversion", None)
+
+        if not conversion:
+            return raw_value
+
+        if isinstance(conversion, str) and conversion.startswith("scaleAndAdd("):
+            parts = conversion[12:-1].split(",")
+            try:
+                scale = float(parts[0].strip())
+                offset = float(parts[1].strip())
+                return raw_value * scale + offset
+            except (ValueError, IndexError):
+                return raw_value
+
+        if conversion == "logScale":
+            min_val = getattr(widget, "min_val", 1.0)
+            max_val = getattr(widget, "max_val", max(min_val, 1.0))
+            if raw_value <= 0 or min_val <= 0 or max_val <= 0 or min_val == max_val:
+                return min_val
+            ratio = raw_value / 127.0
+            log_span = math.log10(max_val / min_val)
+            return min_val * (10 ** (ratio * log_span))
+
+        if conversion == "timeMs":
+            return self._magicstomp_to_ms(raw_value)
+
+        if conversion == "freqHz":
+            min_val = getattr(widget, "min_val", 1.0)
+            max_val = getattr(widget, "max_val", max(min_val, 1.0))
+            if raw_value <= 0 or min_val <= 0 or max_val <= 0 or min_val == max_val:
+                return min_val
+            ratio = raw_value / 127.0
+            log_span = math.log10(max_val / min_val)
+            return min_val * (10 ** (ratio * log_span))
+
+        return raw_value
+
+    @staticmethod
+    def _magicstomp_to_ms(raw_value: int) -> float:
+        if raw_value <= 127:
+            return raw_value / 2.54
+        if raw_value <= 255:
+            return 50.0 + (raw_value - 127) / 0.28
+        return 500.0 + (raw_value - 255) / 0.1
     
     def set_all_parameters(self, params: Dict[str, Any]):
         """Définit tous les paramètres."""
