@@ -174,7 +174,7 @@ class SplitVerticalGUI:
         self.load_settings()
         self.create_widgets()
         self.init_hil_system()
-        self.init_midi_connection()
+        # MIDI connection will be initialized after devices are refreshed
     
     def setup_styles(self):
         """Setup compact styling."""
@@ -245,6 +245,8 @@ class SplitVerticalGUI:
             try:
                 self.refresh_audio_devices()
                 self.refresh_midi_devices()
+                # Initialize MIDI connection after devices are refreshed
+                self.init_midi_connection()
             except Exception as e:
                 # Fallback if status_text is still not available
                 print(f"Error initializing devices: {e}")
@@ -975,6 +977,7 @@ class SplitVerticalGUI:
         ttk.Label(midi_output_frame, text="MIDI Output:", style='Info.TLabel').pack(side=tk.LEFT, padx=(0, 10))
         
         self.midi_output_var = tk.StringVar()
+        self.midi_output_var.trace('w', self.on_midi_output_changed)
         self.midi_output_combo = ttk.Combobox(midi_output_frame, textvariable=self.midi_output_var,
                                              state="readonly", width=40)
         self.midi_output_combo.pack(side=tk.LEFT, padx=(0, 10))
@@ -1283,12 +1286,29 @@ class SplitVerticalGUI:
     def init_midi_connection(self):
         """Initialize MIDI connection to Magicstomp."""
         try:
-            # Try to connect to Magicstomp
-            self.realtime_magicstomp.connect()
-            if self.realtime_magicstomp.output_port:
-                self.log_status("✅ MIDI connection to Magicstomp established")
+            # Get saved MIDI output device from settings
+            midi_output_device = getattr(self, 'midi_output_var', None)
+            if midi_output_device and hasattr(midi_output_device, 'get'):
+                saved_output = midi_output_device.get()
+                if saved_output and saved_output != "Default MIDI Output":
+                    print(f"🔍 DEBUG: Using saved MIDI output: {saved_output}")
+                    # Reinitialize RealtimeMagicstomp with saved port
+                    self.realtime_magicstomp = RealtimeMagicstomp(midi_port_name=saved_output, auto_detect=False)
+                    self.log_status(f"✅ MIDI connection restored to: {saved_output}")
+                else:
+                    # Use auto-detection if no saved port
+                    self.realtime_magicstomp.connect()
+                    if self.realtime_magicstomp.output_port:
+                        self.log_status("✅ MIDI connection to Magicstomp established (auto-detected)")
+                    else:
+                        self.log_status("⚠️ MIDI connection failed - no output port found")
             else:
-                self.log_status("⚠️ MIDI connection failed - no output port found")
+                # Fallback to auto-detection
+                self.realtime_magicstomp.connect()
+                if self.realtime_magicstomp.output_port:
+                    self.log_status("✅ MIDI connection to Magicstomp established (auto-detected)")
+                else:
+                    self.log_status("⚠️ MIDI connection failed - no output port found")
         except Exception as e:
             self.log_status(f"❌ Error initializing MIDI connection: {e}")
     
@@ -3599,6 +3619,20 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
             self.midi_output_var.set("Default MIDI Output")
         except Exception as e:
             self.log_status(f"❌ Error refreshing MIDI devices: {e}")
+    
+    def on_midi_output_changed(self, *args):
+        """Handle MIDI output device change."""
+        try:
+            new_output = self.midi_output_var.get()
+            if new_output and new_output != "Default MIDI Output":
+                print(f"🔍 DEBUG: MIDI output changed to: {new_output}")
+                # Reinitialize RealtimeMagicstomp with new port
+                self.realtime_magicstomp = RealtimeMagicstomp(midi_port_name=new_output, auto_detect=False)
+                self.log_status(f"✅ MIDI connection updated to: {new_output}")
+                # Save settings
+                self.save_settings()
+        except Exception as e:
+            self.log_status(f"❌ Error updating MIDI connection: {e}")
     
     def update_midi_channels(self, channel):
         """Update selected MIDI channels."""

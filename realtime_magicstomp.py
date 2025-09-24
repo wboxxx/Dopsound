@@ -495,6 +495,11 @@ class RealtimeMagicstomp:
     def __enter__(self):
         return self
     
+    def connect(self):
+        """Connect to MIDI ports."""
+        if not self.output_port:
+            self._initialize_midi()
+    
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.stop()
 
