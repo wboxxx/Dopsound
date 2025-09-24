@@ -748,6 +748,10 @@ class SplitVerticalGUI:
                              command=self.load_effect_widget)
         load_btn.pack(side=tk.LEFT)
         
+        download_btn = ttk.Button(selection_frame, text="📥 Download Current",
+                                 command=self.download_current_patch)
+        download_btn.pack(side=tk.LEFT, padx=(10, 0))
+        
         # Effect parameters (scrollable)
         params_frame = ttk.LabelFrame(self.patch_builder_frame, text="Parameters", padding=10)
         params_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
@@ -1208,6 +1212,134 @@ class SplitVerticalGUI:
             if hasattr(child, 'param_name'):
                 self.current_effect_widget.set_parameter_callback(
                     child.param_name, parameter_changed)
+    
+    def download_current_patch(self):
+        """Download current patch from Magicstomp and display it."""
+        
+        if self.realtime_magicstomp is None:
+            try:
+                self.realtime_magicstomp = RealtimeMagicstomp()
+            except Exception as exc:
+                self.log_status(f"❌ MIDI init error: {exc}")
+                messagebox.showerror("Magicstomp", f"Failed to initialize MIDI connection:\n{exc}")
+                return
+
+        self.log_status("📥 Requesting current patch from Magicstomp...")
+        patch_data = self.realtime_magicstomp.request_patch()
+
+        if not patch_data:
+            self.log_status("❌ Failed to download patch from Magicstomp")
+            messagebox.showerror("Magicstomp", "Unable to download current patch. Check MIDI connection.")
+            return
+
+        common_section = patch_data.get('common')
+        effect_section = patch_data.get('effect')
+        if not common_section or not effect_section:
+            self.log_status("❌ Invalid patch payload received")
+            messagebox.showerror("Magicstomp", "Invalid patch data received from Magicstomp.")
+            return
+
+        effect_type = common_section[0]
+        effect_name = EffectRegistry.get_effect_name(effect_type)
+
+        if not EffectRegistry.is_effect_supported(effect_type):
+            self.log_status(f"⚠️ Effect {effect_name} not supported in editor")
+            messagebox.showwarning("Magicstomp", f"Effect {effect_name} (0x{effect_type:02X}) is not supported in the editor.")
+            return
+
+        # Clear current widget
+        if self.current_effect_widget:
+            self.current_effect_widget.destroy()
+
+        # Create new widget
+        self.current_effect_widget = EffectRegistry.create_effect_widget(
+            effect_type, self.params_scrollable_frame)
+        
+        if not self.current_effect_widget:
+            self.log_status(f"❌ Effect widget for {effect_name} not available")
+            messagebox.showerror("Magicstomp", f"Unable to load widget for effect {effect_name}.")
+            return
+
+        # Apply parameters from Magicstomp data
+        applied_params = {}
+        if hasattr(self.current_effect_widget, 'apply_magicstomp_data'):
+            applied_params = self.current_effect_widget.apply_magicstomp_data(effect_section)
+
+        # Pack the widget
+        self.current_effect_widget.pack(fill=tk.X, padx=5, pady=5)
+        
+        # Setup callbacks and visualization
+        self.setup_parameter_callbacks()
+        self.impact_visualizer.set_effect_widget(self.current_effect_widget)
+        
+        # Store parameters
+        self.current_effect_type = effect_type
+        self.current_parameters = self.current_effect_widget.get_all_parameters()
+        self.original_parameters = self.current_parameters.copy()
+
+        # Extract patch name
+        patch_name = self._extract_patch_name(common_section)
+        
+        # Update current patch
+        self.current_patch = {
+            'patch_index': patch_data.get('patch_index'),
+            'effect_type': effect_type,
+            'effect_name': effect_name,
+            'patch_name': patch_name,
+            'parameters': self.current_parameters,
+            'common': common_section,
+            'effect_bytes': effect_section,
+        }
+
+        # Update effect selection in combo
+        self._select_effect_in_combo(effect_name, effect_type)
+
+        # Update status
+        display_name = self.get_display_name_for_effect(effect_name)
+        self.log_status(f"✅ Patch downloaded: {patch_name} ({display_name})")
+        if applied_params:
+            self.log_status(f"🎚️ Parameters applied: {len(applied_params)} values")
+        else:
+            self.log_status("ℹ️ Patch applied with default parameter mapping")
+        
+        self.update_status_info()
+        messagebox.showinfo("Magicstomp", f"Patch '{patch_name}' downloaded from Magicstomp.")
+    
+    def _extract_patch_name(self, common_section):
+        """Extract patch name from common section data."""
+        if len(common_section) < 16:
+            return "Magicstomp Patch"
+        
+        # Patch name is at offset 16, 12 characters long
+        name_bytes = common_section[16:28]
+        
+        try:
+            # Try to decode as ASCII
+            name = ''.join(chr(b) for b in name_bytes if 32 <= b <= 126).strip()
+            if name:
+                return name
+        except Exception:
+            pass
+        
+        # Fallback: try to decode as best as possible
+        try:
+            name = ''.join(chr(b) for b in name_bytes if 32 <= b <= 126).strip()
+        except Exception:
+            name = ''.join(chr(b) for b in name_bytes if 32 <= b <= 126).strip()
+
+        return name or "Magicstomp Patch"
+    
+    def _select_effect_in_combo(self, effect_name, effect_type):
+        """Select the effect in the combo box."""
+        try:
+            # Find the matching item in the combo
+            combo_values = list(self.effect_combo['values'])
+            for item in combo_values:
+                if f"{effect_name} (0x{effect_type:02X})" in item:
+                    self.effect_combo.set(item)
+                    break
+        except Exception as e:
+            print(f"🔍 DEBUG: Error selecting effect in combo: {e}")
     
     def find_sysex_offset(self, param_name: str, effect_type: str) -> int:
         """Find Sysex offset for a parameter based on effect type and parameter name."""
