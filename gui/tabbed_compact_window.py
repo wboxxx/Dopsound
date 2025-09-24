@@ -29,6 +29,7 @@ from hil.io import AudioDeviceManager
 # Import Magicstomp effects and visualization
 from magicstomp_effects import EffectRegistry
 from adapter_magicstomp import MagicstompAdapter
+from realtime_magicstomp import RealtimeMagicstomp
 from gui.impact_visualization import ImpactVisualizer, ParameterImpact, ImpactLevel
 
 
@@ -70,6 +71,7 @@ class TabbedCompactGUI:
         
         # Enhanced components
         self.magicstomp_adapter = MagicstompAdapter()
+        self.realtime_magicstomp = None
         self.current_effect_widget = None
         self.current_effect_type = None
         self.impact_visualizer = None
@@ -183,9 +185,13 @@ class TabbedCompactGUI:
                                         state="readonly", width=40)
         self.effect_combo.pack(side=tk.LEFT, padx=(0, 10))
         
-        load_btn = ttk.Button(selection_frame, text="Load Effect", 
+        load_btn = ttk.Button(selection_frame, text="Load Effect",
                              command=self.load_effect_widget)
         load_btn.pack(side=tk.LEFT)
+
+        download_btn = ttk.Button(selection_frame, text="📥 Download Current",
+                                  command=self.download_current_patch)
+        download_btn.pack(side=tk.LEFT, padx=(10, 0))
         
         # Effect parameters (scrollable)
         params_frame = ttk.LabelFrame(self.effects_frame, text="Parameters", padding=10)
@@ -360,48 +366,145 @@ class TabbedCompactGUI:
         if not selection:
             self.log_status("⚠️ Select an effect")
             return
-        
+
         try:
             effect_type_hex = selection.split('(0x')[1].split(')')[0]
             effect_type = int(effect_type_hex, 16)
         except (ValueError, IndexError):
             self.log_status("❌ Invalid effect")
             return
-        
-        # Clear current widget
-        if self.current_effect_widget:
-            self.current_effect_widget.destroy()
-        
-        # Create new widget
-        self.current_effect_widget = EffectRegistry.create_effect_widget(
-            effect_type, self.params_scrollable_frame)
-        
-        if self.current_effect_widget:
-            self.current_effect_widget.pack(fill=tk.X, padx=5, pady=5)
-            
-            self.setup_parameter_callbacks()
-            self.impact_visualizer.set_effect_widget(self.current_effect_widget)
-            
-            self.current_effect_type = effect_type
-            self.original_parameters = self.current_effect_widget.get_all_parameters()
-            
-            effect_name = EffectRegistry.get_effect_name(effect_type)
-            self.log_status(f"🎛️ Loaded: {effect_name}")
-        else:
+
+        if not self._set_effect_widget(effect_type):
             self.log_status(f"❌ Effect 0x{effect_type:02X} not supported")
     
     def setup_parameter_callbacks(self):
         """Setup parameter callbacks."""
         if not self.current_effect_widget:
             return
-        
+
         def parameter_changed(param_name, user_value, magicstomp_value):
             self.on_parameter_changed(param_name, user_value, magicstomp_value)
-        
+
         for child in self.current_effect_widget.winfo_children():
             if hasattr(child, 'param_name'):
                 self.current_effect_widget.set_parameter_callback(
                     child.param_name, parameter_changed)
+
+    def _select_effect_in_combo(self, effect_name: str, effect_type: int) -> None:
+        target = f"(0x{effect_type:02X})"
+        values = self.effect_combo['values'] if self.effect_combo else []
+        for item in values:
+            if item.endswith(target) or item.startswith(effect_name):
+                self.effect_combo.set(item)
+                return
+
+    def _set_effect_widget(self, effect_type: int, log_load: bool = True) -> bool:
+        if self.current_effect_widget:
+            self.current_effect_widget.destroy()
+
+        widget = EffectRegistry.create_effect_widget(effect_type, self.params_scrollable_frame)
+        if not widget:
+            self.current_effect_widget = None
+            return False
+
+        widget.pack(fill=tk.X, padx=5, pady=5)
+        self.current_effect_widget = widget
+
+        self.setup_parameter_callbacks()
+        if self.impact_visualizer:
+            self.impact_visualizer.set_effect_widget(widget)
+
+        self.current_effect_type = effect_type
+        self.original_parameters = widget.get_all_parameters()
+        self.current_parameters = self.original_parameters.copy()
+
+        effect_name = EffectRegistry.get_effect_name(effect_type)
+        self._select_effect_in_combo(effect_name, effect_type)
+
+        if log_load:
+            self.log_status(f"🎛️ Loaded: {effect_name}")
+
+        return True
+
+    @staticmethod
+    def _extract_patch_name(common_section) -> str:
+        if not common_section or len(common_section) < 28:
+            return "Magicstomp Patch"
+
+        name_bytes = bytes(common_section[16:28])
+        try:
+            name = name_bytes.decode('ascii', errors='ignore').strip()
+        except Exception:
+            name = ''.join(chr(b) for b in name_bytes if 32 <= b <= 126).strip()
+
+        return name or "Magicstomp Patch"
+
+    def download_current_patch(self):
+        """Download current patch from Magicstomp and display it."""
+
+        if self.realtime_magicstomp is None:
+            try:
+                self.realtime_magicstomp = RealtimeMagicstomp()
+            except Exception as exc:  # pragma: no cover - dépend du matériel
+                self.log_status(f"❌ MIDI init error: {exc}")
+                messagebox.showerror("Magicstomp", f"Failed to initialize MIDI connection:\n{exc}")
+                return
+
+        self.log_status("📥 Requesting current patch from Magicstomp...")
+        patch_data = self.realtime_magicstomp.request_patch()
+
+        if not patch_data:
+            self.log_status("❌ Failed to download patch from Magicstomp")
+            messagebox.showerror("Magicstomp", "Unable to download current patch. Check MIDI connection.")
+            return
+
+        common_section = patch_data.get('common')
+        effect_section = patch_data.get('effect')
+        if not common_section or not effect_section:
+            self.log_status("❌ Invalid patch payload received")
+            messagebox.showerror("Magicstomp", "Invalid patch data received from Magicstomp.")
+            return
+
+        effect_type = common_section[0]
+        effect_name = EffectRegistry.get_effect_name(effect_type)
+
+        if not EffectRegistry.is_effect_supported(effect_type):
+            self.log_status(f"⚠️ Effect {effect_name} not supported in editor")
+            messagebox.showwarning("Magicstomp", f"Effect {effect_name} (0x{effect_type:02X}) is not supported in the editor.")
+            return
+
+        if not self._set_effect_widget(effect_type, log_load=False):
+            self.log_status(f"❌ Effect widget for {effect_name} not available")
+            messagebox.showerror("Magicstomp", f"Unable to load widget for effect {effect_name}.")
+            return
+
+        applied_params = {}
+        if hasattr(self.current_effect_widget, 'apply_magicstomp_data'):
+            applied_params = self.current_effect_widget.apply_magicstomp_data(effect_section)
+
+        self.current_parameters = self.current_effect_widget.get_all_parameters()
+        self.original_parameters = self.current_parameters.copy()
+
+        patch_name = self._extract_patch_name(common_section)
+        self.current_patch = {
+            'patch_index': patch_data.get('patch_index'),
+            'effect_type': effect_type,
+            'effect_name': effect_name,
+            'patch_name': patch_name,
+            'parameters': self.current_parameters,
+            'common': common_section,
+            'effect_bytes': effect_section,
+        }
+
+        self._select_effect_in_combo(effect_name, effect_type)
+
+        self.log_status(f"✅ Patch downloaded: {patch_name} ({effect_name})")
+        if applied_params:
+            self.log_status(f"🎚️ Parameters applied: {len(applied_params)} values")
+        else:
+            self.log_status("ℹ️ Patch applied with default parameter mapping")
+
+        messagebox.showinfo("Magicstomp", f"Patch '{patch_name}' downloaded from Magicstomp.")
     
     def on_parameter_changed(self, param_name: str, user_value, magicstomp_value: int):
         """Handle parameter changes."""
