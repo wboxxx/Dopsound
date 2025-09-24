@@ -422,6 +422,9 @@ class SplitVerticalGUI:
                 print("🔍 DEBUG: Auto-loading effects from patch...")
                 self.auto_load_effects_from_patch()
                 
+                # Apply patch parameters to widgets after a short delay
+                self.root.after(500, self.apply_patch_parameters_to_widgets)
+                
                 # Clear the queued patch
                 self.patch_to_restore = None
                 
@@ -2376,6 +2379,9 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                 print(f"🔍 DEBUG: About to auto-load effects from patch: {self.current_patch}")
                 self.auto_load_effects_from_patch()
                 
+                # Apply patch parameters to widgets after a short delay
+                self.root.after(500, self.apply_patch_parameters_to_widgets)
+                
                 # If effect is loaded, apply parameters
                 if self.current_effect_widget and hasattr(self.current_effect_widget, 'set_all_parameters'):
                     # Convert patch parameters to widget parameters
@@ -2544,6 +2550,9 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
         if not self.current_patch:
             print("🔍 DEBUG: No current patch to analyze")
             return
+        
+        # Clear existing effect widgets before loading new ones
+        self.clear_effect_widgets()
         
         try:
             # Analyze patch to identify effects
@@ -2735,6 +2744,77 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                 
         except Exception as e:
             print(f"🔍 DEBUG: Error in auto_load_effects_from_patch: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def clear_effect_widgets(self):
+        """Clear all existing effect widgets from the cascade."""
+        try:
+            print("🔍 DEBUG: Clearing existing effect widgets")
+            
+            # Clear the cascade list
+            if hasattr(self, 'effect_widget_cascade'):
+                self.effect_widget_cascade.clear()
+            
+            # Clear current effect widget
+            self.current_effect_widget = None
+            self.current_effect_type = None
+            
+            # Clear effect tabs if they exist
+            if hasattr(self, 'notebook'):
+                # Find and remove effect tabs (they usually have "Effect" in the name)
+                tabs_to_remove = []
+                for i in range(self.notebook.index('end')):
+                    tab_text = self.notebook.tab(i, 'text')
+                    if 'Effect' in tab_text and tab_text != 'Effects':
+                        tabs_to_remove.append(i)
+                
+                # Remove tabs in reverse order to avoid index shifting
+                for i in reversed(tabs_to_remove):
+                    try:
+                        self.notebook.forget(i)
+                        print(f"🔍 DEBUG: Removed effect tab: {i}")
+                    except Exception as e:
+                        print(f"🔍 DEBUG: Error removing tab {i}: {e}")
+            
+            print("🔍 DEBUG: Effect widgets cleared successfully")
+            
+        except Exception as e:
+            print(f"🔍 DEBUG: Error clearing effect widgets: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def apply_patch_parameters_to_widgets(self):
+        """Apply current patch parameters to all loaded effect widgets."""
+        try:
+            if not self.current_patch or not self.effect_widget_cascade:
+                print("🔍 DEBUG: No patch or widgets to apply parameters to")
+                return
+            
+            print("🔍 DEBUG: Applying patch parameters to widgets")
+            self.log_status("🔄 Applying patch parameters to widgets...")
+            
+            # Convert patch parameters to widget parameters
+            widget_params = self.convert_patch_to_widget_params(self.current_patch)
+            print(f"🔍 DEBUG: Converted widget params: {widget_params}")
+            
+            if widget_params:
+                # Apply parameters to all widgets in the cascade
+                for widget in self.effect_widget_cascade:
+                    if hasattr(widget, 'set_all_parameters'):
+                        try:
+                            widget.set_all_parameters(widget_params)
+                            print(f"🔍 DEBUG: Applied parameters to widget: {widget}")
+                        except Exception as e:
+                            print(f"🔍 DEBUG: Error applying parameters to widget: {e}")
+                
+                self.log_status("✅ Patch parameters applied to widgets")
+                print("🔍 DEBUG: Patch parameters applied successfully")
+            else:
+                print("🔍 DEBUG: No widget parameters to apply")
+                
+        except Exception as e:
+            print(f"🔍 DEBUG: Error applying patch parameters to widgets: {e}")
             import traceback
             traceback.print_exc()
 
