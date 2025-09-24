@@ -15,6 +15,8 @@ import time
 import json
 import csv
 import re
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple
 import numpy as np
 from pathlib import Path
 import matplotlib.pyplot as plt
@@ -37,6 +39,52 @@ from adapter_magicstomp import MagicstompAdapter
 from gui.impact_visualization import ImpactVisualizer, ParameterImpact, ImpactLevel
 
 
+@dataclass
+class EffectMatch:
+    """Represents an effect inferred from a patch section."""
+
+    section: str
+    candidate: str
+    canonical_name: Optional[str]
+    official_name: Optional[str]
+    normalized_name: str
+    effect_type: Optional[int]
+    is_official: bool
+    is_supported: bool
+    reason: str = ""
+
+    @property
+    def display_name(self) -> str:
+        """Human friendly name prioritising official catalog labels."""
+
+        if self.official_name:
+            return self.official_name
+        if self.canonical_name:
+            return self.canonical_name
+        if self.candidate:
+            return self.candidate
+        return self.section.title()
+
+    def should_attempt_load(self) -> bool:
+        """Return True when the match can be instantiated as a widget."""
+
+        return bool(self.canonical_name) and self.is_official and self.is_supported
+
+    def describe_failure(self) -> str:
+        """Return a human-readable reason for a failure."""
+
+        details = self.reason.strip()
+        if not self.is_official and "official" not in details.lower():
+            if details:
+                details = f"{details}; not in official catalog"
+            else:
+                details = "Not in official catalog"
+        if self.is_official and not self.is_supported and "widget" not in details.lower():
+            extra = "No widget available"
+            details = f"{details}; {extra}" if details else extra
+        return details
+
+
 class SplitVerticalGUI:
     """
     GUI avec split vertical permanent.
@@ -48,17 +96,30 @@ class SplitVerticalGUI:
     
     def __init__(self):
         """Initialize the split vertical GUI."""
+        # Load effect metadata before the GUI starts so heuristics use official names
+        self.official_effect_names = set()
+        self.official_effect_lookup: Dict[str, str] = {}
+        self.supported_effect_name_to_type: Dict[str, int] = {}
+        self.supported_effect_normalized_to_name: Dict[str, str] = {}
+        self.supported_effect_normalized_to_type: Dict[str, int] = {}
+        self.canonical_to_official_name: Dict[str, str] = {}
+        self.effect_metadata_loaded = False
+
+        # Load Magicstomp catalog to align analysis suggestions with official effects
+        self.load_official_effect_catalog()
+
+        # GUI root configuration
         self.root = tk.Tk()
         self.root.title("🎸 Magicstomp HIL - Split Vertical")
         self.root.geometry("1400x900")
         self.root.configure(bg='#2c3e50')
-        
+
         # Minimum size
         self.root.minsize(1200, 700)
-        
+
         # Handle window closing
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
-        
+
         # State variables
         self.target_file = None
         self.di_file = None
@@ -68,10 +129,11 @@ class SplitVerticalGUI:
         self.audio_stream = None
         self.live_di_stream = None
         self.analysis_data = {}
-        
+
         # Effect cascade management
         self.effect_widget_cascade = []
-        
+        self.last_identified_effects: Dict[str, List[EffectMatch]] = {}
+
         # Audio/MIDI settings
         self.audio_input_device = None
         self.audio_output_device = None
@@ -81,42 +143,31 @@ class SplitVerticalGUI:
         self.buffer_size = 1024
         self.audio_channels = 2
         self.midi_channels = [1]  # Default to channel 1
-        
+
         # HIL system
         self.hil_matcher = None
         self.audio_manager = None
         self.is_optimizing = False
-        
+
         # Enhanced components
         self.magicstomp_adapter = MagicstompAdapter()
         self.current_effect_widget = None
         self.current_effect_type = None
         self.impact_visualizer = None
-        
+
         # MIDI/Sysex communication
-        self.realtime_magicstomp = RealtimeMagicstomp(auto_detect=True)
-        
+        self.realtime_magicstomp = RealtimeMagicstomp()
+
         # Create reverse mapping: parameter name -> offset
         self.parameter_to_offset = {v: k for k, v in EFFECT_PARAMETERS.items()}
-        
+
         # Parameter state
         self.original_parameters = {}
         self.target_parameters = {}
         self.current_parameters = {}
-        
+
         # Settings file path
         self.settings_file = Path("magicstomp_gui_settings.json")
-
-        # Effect catalog (official + supported widgets)
-        self.official_effect_names = set()
-        self.official_effect_lookup = {}
-        self.supported_effect_name_to_type = {}
-        self.supported_effect_normalized_to_name = {}
-        self.supported_effect_normalized_to_type = {}
-        self.canonical_to_official_name = {}
-
-        # Load Magicstomp catalog to align analysis suggestions with official effects
-        self.load_official_effect_catalog()
 
         # Initialize
         self.setup_styles()
@@ -747,15 +798,6 @@ class SplitVerticalGUI:
                                command=self.check_device_status)
         status_btn.pack(side=tk.LEFT)
         
-        # Test buttons for real-time parameter tweaking
-        test_param_btn = ttk.Button(controls_frame, text="🧪 Test Parameter", 
-                                   command=self.test_realtime_parameter)
-        test_param_btn.pack(side=tk.LEFT, padx=(10, 5))
-        
-        test_advanced_btn = ttk.Button(controls_frame, text="🔬 Test Advanced", 
-                                      command=self.test_advanced_parameters)
-        test_advanced_btn.pack(side=tk.LEFT, padx=(5, 0))
-        
         # Impact visualization
         self.init_impact_visualizer()
     
@@ -921,7 +963,6 @@ class SplitVerticalGUI:
         self.midi_input_combo = ttk.Combobox(midi_input_frame, textvariable=self.midi_input_var,
                                             state="readonly", width=40)
         self.midi_input_combo.pack(side=tk.LEFT, padx=(0, 10))
-        self.midi_input_combo.bind('<<ComboboxSelected>>', self.on_midi_input_changed)
         
         refresh_midi_btn = ttk.Button(midi_input_frame, text="🔄 Refresh", 
                                      command=self.refresh_midi_devices)
@@ -937,7 +978,6 @@ class SplitVerticalGUI:
         self.midi_output_combo = ttk.Combobox(midi_output_frame, textvariable=self.midi_output_var,
                                              state="readonly", width=40)
         self.midi_output_combo.pack(side=tk.LEFT, padx=(0, 10))
-        self.midi_output_combo.bind('<<ComboboxSelected>>', self.on_midi_output_changed)
         
         # MIDI Channels
         midi_channels_frame = ttk.Frame(midi_frame)
@@ -957,9 +997,6 @@ class SplitVerticalGUI:
             cb = ttk.Checkbutton(channels_grid, text=f"Ch{i}", variable=var,
                                 command=lambda ch=i: self.update_midi_channels(ch))
             cb.grid(row=(i-1)//4, column=(i-1)%4, padx=5, pady=2, sticky='w')
-        
-        # Recharge les paramètres MIDI après création des widgets
-        self.reload_midi_settings()
         
         # Test Audio Button
         test_audio_frame = ttk.LabelFrame(self.settings_frame, text="🎧 Test Audio", padding=10)
@@ -1033,7 +1070,8 @@ class SplitVerticalGUI:
         # Update current effect
         if self.current_effect_type is not None:
             effect_name = EffectRegistry.get_effect_name(self.current_effect_type)
-            self.current_effect_var.set(f"Effect: {effect_name}")
+            display_name = self.get_display_name_for_effect(effect_name)
+            self.current_effect_var.set(f"Effect: {display_name}")
         else:
             self.current_effect_var.set("No effect loaded")
         
@@ -1141,7 +1179,8 @@ class SplitVerticalGUI:
             self.original_parameters = self.current_effect_widget.get_all_parameters()
             
             effect_name = EffectRegistry.get_effect_name(effect_type)
-            self.log_status(f"🎛️ Loaded: {effect_name}")
+            display_name = self.get_display_name_for_effect(effect_name)
+            self.log_status(f"🎛️ Loaded: {display_name}")
             self.update_status_info()
         else:
             self.log_status(f"❌ Effect 0x{effect_type:02X} not supported")
@@ -1244,7 +1283,8 @@ class SplitVerticalGUI:
     def init_midi_connection(self):
         """Initialize MIDI connection to Magicstomp."""
         try:
-            # RealtimeMagicstomp is already initialized with auto_detect=True
+            # Try to connect to Magicstomp
+            self.realtime_magicstomp.connect()
             if self.realtime_magicstomp.output_port:
                 self.log_status("✅ MIDI connection to Magicstomp established")
             else:
@@ -2147,7 +2187,13 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                 print(f"🔍 DEBUG: Generated patch: {self.current_patch}")
                 
                 self.root.after(0, lambda: self.log_status(f"✅ Patch generated ({len(magicstomp_params)} params)"))
-                self.root.after(0, lambda: self.log_status(f"🎛️ Effect: {EffectRegistry.get_effect_name(self.current_effect_type)}"))
+                def log_effect_label():
+                    if self.current_effect_type is not None:
+                        effect_name = EffectRegistry.get_effect_name(self.current_effect_type)
+                        display_name = self.get_display_name_for_effect(effect_name)
+                        self.log_status(f"🎛️ Effect: {display_name}")
+
+                self.root.after(0, log_effect_label)
                 
                 # Display patch parameters
                 self.root.after(0, self.display_patch_parameters)
@@ -2493,55 +2539,85 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
         
         try:
             # Analyze patch to identify effects
-            identified_effects = self.identify_effects_from_patch(self.current_patch)
-            print(f"🔍 DEBUG: Identified effects: {identified_effects}")
-            self.log_status(f"🔍 Identified effects: {identified_effects}")
-            
-            if identified_effects:
-                # Load ALL identified effects to create a complete effect cascade
-                print(f"🔍 DEBUG: Loading effect cascade with {len(identified_effects)} effects")
-                self.log_status(f"🎛️ Loading effect cascade: {len(identified_effects)} effects")
-                
-                loaded_effects = []
-                for i, effect_name in enumerate(identified_effects):
-                    display_name = self.get_display_name_for_effect(effect_name)
-                    print(f"🔍 DEBUG: Auto-loading effect {i+1}/{len(identified_effects)}: {effect_name} (display: {display_name})")
-                    self.log_status(f"🎛️ Loading effect {i+1}/{len(identified_effects)}: {display_name}")
+            identification = self.identify_effects_from_patch(self.current_patch)
+            official_matches = identification.get('official', [])
+            unsupported_matches = identification.get('unsupported', [])
+            unverified_matches = identification.get('unverified', [])
+            duplicate_matches = identification.get('duplicates', [])
 
-                    # Add the effect to the cascade (don't replace previous ones)
-                    success = self.add_effect_to_cascade(effect_name)
-                    print(f"🔍 DEBUG: add_effect_to_cascade returned: {success}")
-                    self.log_status(f"🔍 Add effect result: {success}")
+            official_names = [match.display_name for match in official_matches]
+            unsupported_names = [match.display_name for match in unsupported_matches]
+            unverified_names = [match.display_name for match in unverified_matches]
+            duplicate_names = [match.display_name for match in duplicate_matches]
 
-                    if success:
-                        loaded_effects.append(effect_name)
-                        self.log_status(f"✅ Loaded: {display_name}")
-                        print(f"🔍 DEBUG: Successfully loaded effect: {effect_name}")
-                    else:
-                        print(f"🔍 DEBUG: Failed to load effect: {effect_name}")
-                        self.log_status(f"❌ Failed to load: {display_name}")
+            print(f"🔍 DEBUG: Official matches: {official_names}")
+            print(f"🔍 DEBUG: Unsupported matches: {unsupported_names}")
+            print(f"🔍 DEBUG: Unverified matches: {unverified_names}")
+            print(f"🔍 DEBUG: Duplicate matches: {duplicate_names}")
 
-                # Report cascade status
-                if loaded_effects:
-                    loaded_display_names = [self.get_display_name_for_effect(name) for name in loaded_effects]
-                    self.log_status(
-                        f"🎛️ Effect cascade loaded: {len(loaded_effects)}/{len(identified_effects)} effects"
-                        f" ({', '.join(loaded_display_names)})"
-                    )
-                    print(f"🔍 DEBUG: Effect cascade loaded: {loaded_effects}")
+            if not official_matches:
+                if unsupported_names:
+                    self.log_status(f"⚠️ Official effects unsupported: {', '.join(unsupported_names)}")
+                if unverified_names:
+                    self.log_status(f"ℹ️ Effect hints outside official catalog: {', '.join(unverified_names)}")
+                if duplicate_names:
+                    self.log_status(f"ℹ️ Duplicate effect hints ignored: {', '.join(duplicate_names)}")
+                print("🔍 DEBUG: No official effects identified in patch")
+                self.log_status("💡 No specific effects identified in patch - manual selection required")
+                return
+
+            self.log_status(f"🔍 Identified effects: {', '.join(official_names)}")
+            print(f"🔍 DEBUG: Loading effect cascade with {len(official_matches)} effects")
+            self.log_status(f"🎛️ Loading effect cascade: {len(official_matches)} effects")
+
+            loaded_effects: List[EffectMatch] = []
+            load_failures: List[Tuple[EffectMatch, str]] = []
+
+            for i, match in enumerate(official_matches, start=1):
+                display_name = match.display_name
+                print(
+                    f"🔍 DEBUG: Auto-loading effect {i}/{len(official_matches)}: "
+                    f"{display_name} (canonical: {match.canonical_name})"
+                )
+                self.log_status(f"🎛️ Loading effect {i}/{len(official_matches)}: {display_name}")
+
+                success, info = self.add_effect_to_cascade(match)
+                print(f"🔍 DEBUG: add_effect_to_cascade returned: {success}, info: {info}")
+
+                if success:
+                    loaded_effects.append(match)
+                    self.log_status(f"✅ Loaded: {display_name}")
+                    print(f"🔍 DEBUG: Successfully loaded effect: {display_name}")
+                else:
+                    load_failures.append((match, info))
+                    self.log_status(f"❌ Failed to load {display_name}: {info}")
+                    print(f"🔍 DEBUG: Failed to load effect: {display_name} ({info})")
+
+            # Report cascade status
+            if loaded_effects:
+                loaded_display_names = [match.display_name for match in loaded_effects]
+                self.log_status(
+                    f"🎛️ Effect cascade loaded: {len(loaded_effects)}/{len(official_matches)} effects"
+                    f" ({', '.join(loaded_display_names)})"
+                )
+                print(f"🔍 DEBUG: Effect cascade loaded: {[match.display_name for match in loaded_effects]}")
                     
-                    # Check if we need to restore a queued patch
-                    print(f"🔍 DEBUG: Checking for queued patch restoration...")
-                    print(f"🔍 DEBUG: - hasattr patch_to_restore: {hasattr(self, 'patch_to_restore')}")
-                    if hasattr(self, 'patch_to_restore'):
-                        print(f"🔍 DEBUG: - patch_to_restore value: {self.patch_to_restore}")
-                    if hasattr(self, 'patch_to_restore') and self.patch_to_restore:
-                        print("🔍 DEBUG: Widgets loaded, triggering patch restoration")
-                        self.root.after(500, self.reload_restored_patch)  # Small delay to ensure widgets are ready
-                    else:
-                        print("🔍 DEBUG: No queued patch to restore")
-                    
-                    # Auto-apply patch parameters to the last loaded effect (current active one)
+                # Check if we need to restore a queued patch
+                print(f"🔍 DEBUG: Checking for queued patch restoration...")
+                print(
+                    f"🔍 DEBUG: - hasattr patch_to_restore: {hasattr(self, 'patch_to_restore')}"
+                )
+                if hasattr(self, 'patch_to_restore'):
+                    print(f"🔍 DEBUG: - patch_to_restore value: {self.patch_to_restore}")
+                if hasattr(self, 'patch_to_restore') and self.patch_to_restore:
+                    print("🔍 DEBUG: Widgets loaded, triggering patch restoration")
+                    self.root.after(
+                        500, self.reload_restored_patch
+                    )  # Small delay to ensure widgets are ready
+                else:
+                    print("🔍 DEBUG: No queued patch to restore")
+
+                # Auto-apply patch parameters to the last loaded effect (current active one)
                     print(f"🔍 DEBUG: Checking auto-apply conditions:")
                     print(f"🔍 DEBUG: - current_patch: {bool(self.current_patch)}")
                     print(f"🔍 DEBUG: - current_effect_widget: {bool(self.current_effect_widget)}")
@@ -2606,14 +2682,48 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                         print(f"🔍 DEBUG: - current_effect_widget: {self.current_effect_widget}")
                         print(f"🔍 DEBUG: - has set_all_parameters: {hasattr(self.current_effect_widget, 'set_all_parameters') if self.current_effect_widget else False}")
                         self.log_status("⚠️ Effect loaded but cannot apply parameters")
-                else:
-                    failed_display_names = [self.get_display_name_for_effect(name) for name in identified_effects]
-                    failed_list = ', '.join(failed_display_names) if failed_display_names else 'None'
-                    self.log_status(f"⚠️ Could not auto-load effects: {failed_list}")
-                    print(f"🔍 DEBUG: Failed to auto-load effects: {identified_effects}")
             else:
-                print("🔍 DEBUG: No effects identified in patch")
-                self.log_status("💡 No specific effects identified in patch - manual selection required")
+                failed_display_names = [match.display_name for match in official_matches]
+                failed_list = ', '.join(failed_display_names) if failed_display_names else 'None'
+                self.log_status(f"⚠️ Could not auto-load effects: {failed_list}")
+                print("🔍 DEBUG: Failed to auto-load any effects")
+
+            summary_bits = []
+            if loaded_effects:
+                summary_bits.append(
+                    "Loaded: " + ', '.join(match.display_name for match in loaded_effects)
+                )
+            if load_failures:
+                summary_bits.append(
+                    "Failed: "
+                    + ', '.join(
+                        f"{match.display_name} ({reason})" for match, reason in load_failures
+                    )
+                )
+            if unsupported_matches:
+                summary_bits.append(
+                    "Unsupported: "
+                    + ', '.join(
+                        f"{match.display_name} ({match.describe_failure()})"
+                        for match in unsupported_matches
+                    )
+                )
+            if unverified_matches:
+                summary_bits.append(
+                    "Unverified: "
+                    + ', '.join(
+                        f"{match.display_name} ({match.describe_failure()})"
+                        for match in unverified_matches
+                    )
+                )
+            if duplicate_matches:
+                summary_bits.append(
+                    "Duplicates ignored: " + ', '.join(duplicate_names)
+                )
+
+            if summary_bits:
+                self.log_status("🧾 Effect cascade summary -> " + " | ".join(summary_bits))
+                print(f"🔍 DEBUG: Summary bits: {summary_bits}")
                 
         except Exception as e:
             print(f"🔍 DEBUG: Error in auto_load_effects_from_patch: {e}")
@@ -2625,6 +2735,82 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
         if not name:
             return ""
         return re.sub(r"[\s\.]+", "", name).lower()
+
+    def is_section_enabled(self, section_data: Dict) -> bool:
+        """Return True if the section is enabled or has no explicit flag."""
+
+        if not isinstance(section_data, dict):
+            return False
+
+        if "enabled" not in section_data:
+            return True
+
+        enabled_value = section_data.get("enabled")
+        if isinstance(enabled_value, str):
+            normalized = enabled_value.strip().lower()
+            return normalized not in {"", "0", "false", "off", "no"}
+        if isinstance(enabled_value, (int, float)):
+            return enabled_value != 0
+        return bool(enabled_value)
+
+    def collect_lower_values(self, section_data: Dict, *keys: str) -> List[str]:
+        """Collect non-empty values from the section as lowercase strings."""
+
+        values: List[str] = []
+        for key in keys:
+            if key not in section_data:
+                continue
+            raw = section_data.get(key)
+            if raw is None:
+                continue
+            if isinstance(raw, str):
+                lowered = raw.strip().lower()
+            else:
+                lowered = str(raw).strip().lower()
+            if lowered:
+                values.append(lowered)
+        return values
+
+    def value_is_truthy(self, value) -> bool:
+        """Evaluate heterogeneous values to a boolean."""
+
+        if isinstance(value, str):
+            return value.strip().lower() not in {"", "0", "false", "off", "no"}
+        if isinstance(value, (int, float)):
+            return value != 0
+        return bool(value)
+
+    def match_effect_by_name(self, effect_name: str, section_name: str, reason: str = "") -> Optional[EffectMatch]:
+        """Build an effect match from a candidate name using catalog metadata."""
+
+        if not effect_name:
+            return None
+
+        normalized = self.normalize_effect_name(effect_name)
+        if not normalized:
+            return None
+
+        canonical_name = self.supported_effect_normalized_to_name.get(normalized)
+        effect_type = self.supported_effect_normalized_to_type.get(normalized)
+
+        official_name = self.official_effect_lookup.get(normalized)
+        if not official_name and canonical_name:
+            official_name = self.canonical_to_official_name.get(canonical_name)
+
+        is_official = bool(official_name)
+        is_supported = effect_type is not None
+
+        return EffectMatch(
+            section=section_name,
+            candidate=effect_name,
+            canonical_name=canonical_name,
+            official_name=official_name,
+            normalized_name=normalized,
+            effect_type=effect_type,
+            is_official=is_official,
+            is_supported=is_supported,
+            reason=reason or "",
+        )
 
     def load_official_effect_catalog(self):
         """Load official Magicstomp effect names from the CSV reference."""
@@ -2703,6 +2889,7 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                 if canonical_name:
                     self.canonical_to_official_name[canonical_name] = official_name
 
+        self.effect_metadata_loaded = True
         print(f"🔍 DEBUG: Supported effects (widgets): {len(self.supported_effect_name_to_type)}")
 
     def get_canonical_effect_name(self, effect_name):
@@ -2746,15 +2933,29 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
 
     def map_section_to_effect(self, section_name, section_data):
         """Map patch sections to official Magicstomp effect names."""
+
         if not isinstance(section_data, dict):
+            print(f"🔍 DEBUG: Section {section_name} ignored (not a mapping)")
             return None
 
-        section_name = section_name.lower()
+        section_key = section_name.lower()
+        if section_key == 'meta':
+            return None
+
+        if not self.is_section_enabled(section_data):
+            print(f"🔍 DEBUG: Section {section_name} disabled or bypassed")
+            return None
 
         direct_mapping = {
             'compressor': 'Compressor',
+            'comp': 'Compressor',
             'eq': '3 Band Parametric EQ',
-            'delay': 'Mono Delay',
+            'eq3band': '3 Band Parametric EQ',
+            'three_band_eq': '3 Band Parametric EQ',
+            'amp': 'Amp Simulator',
+            'amp_sim': 'Amp Simulator',
+            'amp_simulator': 'Amp Simulator',
+            'ampmodel': 'Amp Simulator',
             'stereo_delay': 'Stereo Delay',
             'tape_echo': 'Tape Echo',
             'echo': 'Echo',
@@ -2768,138 +2969,348 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
             'symphonic': 'Symphonic',
             'rotary': 'Rotary',
             'ring_mod': 'Ring Mod.',
+            'ringmod': 'Ring Mod.',
+            'ring': 'Ring Mod.',
             'auto_pan': 'Auto Pan',
+            'autopan': 'Auto Pan',
             'distortion': 'Distortion',
             'fuzz': 'Distortion',
-            'overdrive': 'Amp Simulator',
-            'reverb': 'Reverb',
+            'overdrive': 'Distortion',
             'gate': 'Gate Reverb',
             'reverse_gate': 'Reverse Gate',
             'spring_reverb': 'Spring Reverb',
             'early_ref': 'Early Reflections',
+            'early_reflections': 'Early Reflections',
             'limiter': 'Multi Filter',
             'multi_filter': 'Multi Filter',
-            'amp': 'Amp Simulator',
-            'amp_sim': 'Amp Simulator',
-            'amp_simulator': 'Amp Simulator',
             'dynamic_filter': 'Dynamic Filter',
             'dynamic_flange': 'Dynamic Flange',
             'dynamic_phaser': 'Dynamic Phaser',
             'mod_filter': 'Mod. Filter',
-            'eq3band': '3 Band Parametric EQ',
             'dual_pitch': 'Dual Pitch',
             'hq_pitch': 'HQ Pitch',
-            'pitch': 'HQ Pitch',
+            'mband': 'M. Band Dynamic Processor',
+            'm_band': 'M. Band Dynamic Processor',
+            'mband_dyna': 'M. Band Dynamic Processor',
+            'mband_dynamic': 'M. Band Dynamic Processor',
+            'dynamics': 'M. Band Dynamic Processor',
         }
 
-        if section_name in direct_mapping:
-            return self.get_canonical_effect_name(direct_mapping[section_name])
+        if section_key in direct_mapping:
+            match = self.match_effect_by_name(direct_mapping[section_key], section_name)
+            if match:
+                print(
+                    f"🔍 DEBUG: Section {section_name} direct-mapped to {match.display_name} "
+                    f"(official={match.is_official}, supported={match.is_supported})"
+                )
+            else:
+                print(f"🔍 DEBUG: Direct mapping failed for section {section_name}")
+            return match
 
-        if section_name == 'mod':
-            mod_type = str(section_data.get('type', '')).lower()
-            mod_mapping = {
-                'chorus': 'Chorus',
-                'flanger': 'Flange',
-                'phaser': 'Phaser',
-                'tremolo': 'Tremolo',
-                'symphonic': 'Symphonic',
-                'rotary': 'Rotary',
-                'autopan': 'Auto Pan',
-                'auto_pan': 'Auto Pan',
-                'ring': 'Ring Mod.',
-                'ringmod': 'Ring Mod.',
-                'ring_mod': 'Ring Mod.',
-            }
-            candidate = mod_mapping.get(mod_type)
-            if candidate:
-                return self.get_canonical_effect_name(candidate)
+        match: Optional[EffectMatch] = None
 
-        if section_name == 'booster':
-            booster_type = str(section_data.get('type', '')).lower()
-            booster_mapping = {
-                'distortion': 'Distortion',
-                'overdrive': 'Distortion',
-                'fuzz': 'Distortion',
-                'clean': 'Compressor',
-            }
-            candidate = booster_mapping.get(booster_type, 'Distortion')
-            return self.get_canonical_effect_name(candidate)
+        if section_key == 'delay':
+            match = self.infer_delay_effect(section_name, section_data)
+        elif section_key == 'reverb':
+            match = self.infer_reverb_effect(section_name, section_data)
+        elif section_key == 'mod':
+            match = self.infer_mod_effect(section_name, section_data)
+        elif section_key == 'booster':
+            match = self.infer_booster_effect(section_name, section_data)
+        elif section_key in {'pitch', 'pitch_shift', 'harmonizer'}:
+            match = self.infer_pitch_effect(section_name, section_data)
+        elif section_key in {'filter', 'tone'}:
+            match = self.infer_filter_effect(section_name, section_data)
 
-        return None
+        if match:
+            print(
+                f"🔍 DEBUG: Section {section_name} heuristically mapped to {match.display_name} "
+                f"(official={match.is_official}, supported={match.is_supported})"
+            )
+        else:
+            print(f"🔍 DEBUG: No mapping found for section: {section_name}")
+        return match
+
+    def infer_delay_effect(self, section_name: str, section_data: Dict) -> Optional[EffectMatch]:
+        """Infer a delay-based effect from section details."""
+
+        keywords = set(
+            self.collect_lower_values(
+                section_data, 'type', 'mode', 'variant', 'algorithm', 'style'
+            )
+        )
+        has_left_right = any(
+            token in key.lower()
+            for key in section_data.keys()
+            for token in ('left', 'right')
+        )
+        has_modulation = any(
+            key in section_data for key in ('mod_depth', 'mod_rate', 'wow', 'flutter')
+        )
+
+        if any('stereo' in kw for kw in keywords) or self.value_is_truthy(section_data.get('ping_pong')):
+            candidate = 'Stereo Delay'
+        elif has_left_right or section_data.get('lcr_mix') is not None:
+            candidate = 'Delay LCR'
+        elif any('tape' in kw for kw in keywords) or any('analog' in kw for kw in keywords):
+            candidate = 'Tape Echo'
+        elif any('echo' in kw for kw in keywords):
+            candidate = 'Echo'
+        elif any('mod' in kw for kw in keywords) or has_modulation:
+            candidate = 'Mod. Delay'
+        else:
+            candidate = 'Mono Delay'
+
+        return self.match_effect_by_name(candidate, section_name)
+
+    def infer_reverb_effect(self, section_name: str, section_data: Dict) -> Optional[EffectMatch]:
+        """Infer a reverb effect from section details."""
+
+        keywords = set(
+            self.collect_lower_values(
+                section_data, 'type', 'mode', 'variant', 'algorithm', 'character'
+            )
+        )
+
+        if any('spring' in kw for kw in keywords):
+            candidate = 'Spring Reverb'
+        elif any('reverse' in kw for kw in keywords):
+            candidate = 'Reverse Gate'
+        elif any('gate' in kw for kw in keywords):
+            candidate = 'Gate Reverb'
+        elif any('early' in kw for kw in keywords) or self.value_is_truthy(section_data.get('early_reflections')):
+            candidate = 'Early Reflections'
+        else:
+            candidate = 'Reverb'
+
+        return self.match_effect_by_name(candidate, section_name)
+
+    def infer_mod_effect(self, section_name: str, section_data: Dict) -> Optional[EffectMatch]:
+        """Infer a modulation effect from section details."""
+
+        keywords = self.collect_lower_values(
+            section_data, 'type', 'mode', 'variant', 'algorithm', 'waveform'
+        )
+        candidate = None
+
+        for value in keywords:
+            if 'chorus' in value:
+                candidate = 'Chorus'
+                break
+            if 'symph' in value or 'ensemble' in value:
+                candidate = 'Symphonic'
+                break
+            if 'flang' in value:
+                candidate = 'Flange'
+                break
+            if 'phaser' in value:
+                candidate = 'Phaser'
+                break
+            if 'trem' in value or 'vibrato' in value:
+                candidate = 'Tremolo'
+                break
+            if 'rotary' in value or 'leslie' in value:
+                candidate = 'Rotary'
+                break
+            if 'ring' in value:
+                candidate = 'Ring Mod.'
+                break
+            if 'auto pan' in value or 'autopan' in value or value == 'pan':
+                candidate = 'Auto Pan'
+                break
+            if 'filter' in value or 'wah' in value:
+                candidate = 'Mod. Filter'
+                break
+
+        if candidate is None:
+            if any(self.value_is_truthy(section_data.get(flag)) for flag in ('ring_mod', 'ringmod')):
+                candidate = 'Ring Mod.'
+            elif any(self.value_is_truthy(section_data.get(flag)) for flag in ('auto_pan', 'autopan')):
+                candidate = 'Auto Pan'
+
+        if candidate is None:
+            return None
+
+        return self.match_effect_by_name(candidate, section_name)
+
+    def infer_booster_effect(self, section_name: str, section_data: Dict) -> Optional[EffectMatch]:
+        """Infer a booster effect from section details."""
+
+        keywords = self.collect_lower_values(section_data, 'type', 'mode', 'variant')
+        candidate = None
+
+        for value in keywords:
+            if 'clean' in value or 'compress' in value:
+                candidate = 'Compressor'
+                break
+            if any(token in value for token in ('dist', 'drive', 'fuzz', 'tube', 'over')):
+                candidate = 'Distortion'
+                break
+
+        if candidate is None and self.value_is_truthy(section_data.get('clean_boost')):
+            candidate = 'Compressor'
+
+        if candidate is None:
+            candidate = 'Distortion'
+
+        return self.match_effect_by_name(candidate, section_name)
+
+    def infer_pitch_effect(self, section_name: str, section_data: Dict) -> Optional[EffectMatch]:
+        """Infer a pitch-based effect from section details."""
+
+        keywords = self.collect_lower_values(section_data, 'type', 'mode', 'variant', 'algorithm', 'quality')
+        voices = section_data.get('voices') or section_data.get('voice_count')
+        candidate = None
+
+        if any('dual' in value for value in keywords):
+            candidate = 'Dual Pitch'
+        elif any('harm' in value for value in keywords):
+            candidate = 'Dual Pitch'
+        elif isinstance(voices, (int, float)) and voices and voices > 1:
+            candidate = 'Dual Pitch'
+
+        if candidate is None:
+            candidate = 'HQ Pitch'
+
+        return self.match_effect_by_name(candidate, section_name)
+
+    def infer_filter_effect(self, section_name: str, section_data: Dict) -> Optional[EffectMatch]:
+        """Infer a filter-style effect from section details."""
+
+        keywords = self.collect_lower_values(section_data, 'type', 'mode', 'variant', 'algorithm')
+        candidate = None
+
+        for value in keywords:
+            if 'dynamic' in value or 'dyna' in value:
+                candidate = 'Dynamic Filter'
+                break
+            if 'multi' in value:
+                candidate = 'Multi Filter'
+                break
+            if 'mod' in value or 'wah' in value:
+                candidate = 'Mod. Filter'
+                break
+
+        if candidate is None and section_name.lower() == 'filter':
+            candidate = 'Multi Filter'
+
+        if candidate is None:
+            return None
+
+        return self.match_effect_by_name(candidate, section_name)
 
     def identify_effects_from_patch(self, patch):
         """Identify effects from patch data."""
+
         print("🔍 DEBUG: Starting identify_effects_from_patch()")
         print(f"🔍 DEBUG: Analyzing patch: {patch}")
 
-        identified_effects = []
+        report: Dict[str, List[EffectMatch]] = {
+            'official': [],
+            'unsupported': [],
+            'unverified': [],
+            'duplicates': [],
+        }
         seen_effects = set()
 
         try:
-            # Check patch sections to identify effects
             for section_name, section_data in patch.items():
                 if isinstance(section_data, dict) and section_name != 'meta':
                     print(f"🔍 DEBUG: Analyzing section: {section_name}")
 
-                    effect_name = self.map_section_to_effect(section_name, section_data)
-                    if effect_name:
-                        normalized = self.normalize_effect_name(effect_name)
-                        if normalized in seen_effects:
-                            print(f"🔍 DEBUG: Effect already identified: {effect_name}")
-                            continue
+                    match = self.map_section_to_effect(section_name, section_data)
+                    if not match:
+                        continue
 
-                        display_name = self.get_display_name_for_effect(effect_name)
-                        if not self.is_effect_official(effect_name):
-                            print(f"🔍 DEBUG: Skipping non-official effect suggestion: {effect_name}")
-                            continue
+                    normalized = match.normalized_name
+                    if normalized and normalized in seen_effects:
+                        match.reason = match.reason or "Duplicate section match"
+                        report['duplicates'].append(match)
+                        print(
+                            f"🔍 DEBUG: Duplicate effect ignored: {match.display_name} (section: {section_name})"
+                        )
+                        continue
 
+                    if normalized:
                         seen_effects.add(normalized)
-                        identified_effects.append(effect_name)
-                        print(f"🔍 DEBUG: Identified effect: {effect_name} (display: {display_name})")
-                    else:
-                        print(f"🔍 DEBUG: No mapping found for section: {section_name}")
 
-            print(f"🔍 DEBUG: Final identified effects: {identified_effects}")
-            return identified_effects
+                    if match.is_official and match.is_supported:
+                        report['official'].append(match)
+                        print(
+                            f"🔍 DEBUG: Official effect identified: {match.display_name} (section: {section_name})"
+                        )
+                    elif match.is_official:
+                        match.reason = match.reason or "Official effect without widget support"
+                        report['unsupported'].append(match)
+                        print(
+                            f"🔍 DEBUG: Official effect unsupported: {match.display_name}"
+                            f" (reason: {match.reason})"
+                        )
+                    else:
+                        match.reason = match.reason or "Effect not present in official catalog"
+                        report['unverified'].append(match)
+                        print(
+                            f"🔍 DEBUG: Unverified effect candidate: {match.display_name}"
+                            f" (reason: {match.reason})"
+                        )
+
+            summary = {key: [m.display_name for m in value] for key, value in report.items()}
+            print(f"🔍 DEBUG: Identification report: {summary}")
+            self.last_identified_effects = report
+            return report
 
         except Exception as e:
             print(f"🔍 DEBUG: Error identifying effects: {e}")
-            return []
+            self.last_identified_effects = {
+                'official': [],
+                'unsupported': [],
+                'unverified': [],
+                'duplicates': [],
+            }
+            return self.last_identified_effects
 
-    def add_effect_to_cascade(self, effect_name):
+    def add_effect_to_cascade(self, effect_match: EffectMatch):
         """Add an effect widget to the cascade without replacing existing ones."""
-        print(f"🔍 DEBUG: Starting add_effect_to_cascade: {effect_name}")
+
+        print(f"🔍 DEBUG: Starting add_effect_to_cascade: {effect_match}")
+
+        if not isinstance(effect_match, EffectMatch):
+            print("🔍 DEBUG: Invalid effect match provided to add_effect_to_cascade")
+            return False, "Invalid effect description"
 
         try:
-            canonical_name = self.get_canonical_effect_name(effect_name)
-            if not canonical_name:
-                print(f"🔍 DEBUG: Effect {effect_name} not recognized in registry")
-                return False
+            display_name = effect_match.display_name
 
-            effect_type = self.get_effect_type_for_name(canonical_name)
+            if not effect_match.should_attempt_load():
+                reason = effect_match.describe_failure() or "Unsupported effect"
+                print(f"🔍 DEBUG: Cannot load effect {display_name}: {reason}")
+                return False, reason
+
+            effect_type = effect_match.effect_type
+            if effect_type is None and effect_match.canonical_name:
+                effect_type = self.get_effect_type_for_name(effect_match.canonical_name)
+
             if effect_type is None:
-                print(f"🔍 DEBUG: No widget available for effect {canonical_name}")
-                return False
+                reason = effect_match.describe_failure() or "No widget available"
+                print(f"🔍 DEBUG: No widget available for {display_name}")
+                return False, reason
 
-            display_name = self.get_display_name_for_effect(canonical_name)
-
-            print(f"🔍 DEBUG: Starting load_effect_widget_by_type: {effect_type}")
-
-            # Load the effect widget
+            print(f"🔍 DEBUG: Loading widget for type {effect_type} ({display_name})")
             effect_widget = self.load_effect_widget_by_type(effect_type)
-            
+
             if effect_widget:
-                print(f"🔍 DEBUG: Successfully added {canonical_name} to cascade (display: {display_name})")
-                # Update current effect to the last loaded one
+                print(f"🔍 DEBUG: Successfully added {display_name} to cascade")
                 self.current_effect_widget = effect_widget
-                return True
-            else:
-                print(f"🔍 DEBUG: Failed to add {canonical_name} to cascade")
-                return False
+                self.current_effect_type = effect_type
+                return True, display_name
+
+            reason = f"Widget load failed for {display_name}"
+            print(f"🔍 DEBUG: Failed to add {display_name} to cascade")
+            return False, reason
 
         except Exception as e:
             print(f"🔍 DEBUG: Error adding effect to cascade: {e}")
-            return False
+            return False, str(e)
     
     def get_last_effect_widget(self):
         """Get the last (most recently added) effect widget from the scrollable frame."""
@@ -3020,8 +3431,9 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                 # Update UI
                 if hasattr(self, 'current_effect_var'):
                     effect_name = EffectRegistry.get_effect_name(effect_type)
-                    self.current_effect_var.set(f"Loaded: {effect_name}")
-                    print(f"🔍 DEBUG: Updated current_effect_var to: Loaded: {effect_name}")
+                    display_name = self.get_display_name_for_effect(effect_name)
+                    self.current_effect_var.set(f"Loaded: {display_name}")
+                    print(f"🔍 DEBUG: Updated current_effect_var to: Loaded: {display_name}")
                 else:
                     print(f"🔍 DEBUG: No current_effect_var found")
                 
@@ -3082,8 +3494,9 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
             # Convert patch to SysEx
             print("🔍 DEBUG: Converting patch to SysEx...")
             syx_data = adapter.json_to_syx(self.current_patch, patch_number=0)
-            print(f"🔍 DEBUG: SysEx data length: {len(syx_data)} bytes")
-            print(f"🔍 DEBUG: SysEx header: {syx_data[:10]}...")
+            print(f"🔍 DEBUG: Nombre de messages SysEx: {len(syx_data)}")
+            if syx_data:
+                print(f"🔍 DEBUG: Premier message: {syx_data[0]}")
             
             # Get selected MIDI port from settings
             midi_output = self.midi_output_var.get() if hasattr(self, 'midi_output_var') else None
@@ -3118,89 +3531,6 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
             print(f"🔍 DEBUG: Error sending patch: {e}")
             import traceback
             traceback.print_exc()
-    
-    def test_realtime_parameter(self):
-        """Test simple de modification temps réel d'un paramètre."""
-        print("🧪 Test de paramètre temps réel")
-        
-        if not hasattr(self, 'realtime_magicstomp') or not self.realtime_magicstomp.output_port:
-            self.log_status("❌ Pas de connexion MIDI temps réel")
-            print("❌ RealtimeMagicstomp non connecté")
-            return
-        
-        try:
-            # Test simple : modifier le Delay Level (DLVL) - offset 67
-            # Alterne entre deux valeurs pour voir un changement visible
-            import time
-            
-            # Valeur initiale
-            test_value_1 = 50
-            test_value_2 = 80
-            
-            self.log_status(f"🧪 Test paramètre DLVL: {test_value_1} → {test_value_2}")
-            print(f"🧪 Test DLVL (offset 67): {test_value_1} → {test_value_2}")
-            
-            # Envoie la première valeur
-            self.realtime_magicstomp.tweak_parameter(67, test_value_1, immediate=True)
-            print(f"📤 Envoyé DLVL = {test_value_1}")
-            self.log_status(f"📤 Envoyé DLVL = {test_value_1}")
-            
-            # Attend 1 seconde
-            time.sleep(1)
-            
-            # Envoie la deuxième valeur
-            self.realtime_magicstomp.tweak_parameter(67, test_value_2, immediate=True)
-            print(f"📤 Envoyé DLVL = {test_value_2}")
-            self.log_status(f"📤 Envoyé DLVL = {test_value_2}")
-            
-            self.log_status("✅ Test paramètre terminé - vérifiez l'écran du Magicstomp")
-            print("✅ Test terminé - vérifiez l'écran du Magicstomp")
-            
-        except Exception as e:
-            self.log_status(f"❌ Erreur test paramètre: {e}")
-            print(f"❌ Erreur test paramètre: {e}")
-    
-    def test_advanced_parameters(self):
-        """Test avancé de plusieurs paramètres connus."""
-        print("🔬 Test avancé de paramètres")
-        
-        if not hasattr(self, 'realtime_magicstomp') or not self.realtime_magicstomp.output_port:
-            self.log_status("❌ Pas de connexion MIDI temps réel")
-            print("❌ RealtimeMagicstomp non connecté")
-            return
-        
-        try:
-            import time
-            
-            # Paramètres testés précédemment qui fonctionnaient
-            test_params = [
-                (67, "DLVL (Delay Level)", [30, 60, 90]),
-                (71, "DHPF (Delay High Pass Filter)", [20, 50, 80]),
-                (53, "Flanger Depth", [10, 40, 70]),
-                (54, "Flanger Feedback", [25, 55, 85]),
-            ]
-            
-            self.log_status("🔬 Test avancé - plusieurs paramètres")
-            print("🔬 Test avancé de paramètres")
-            
-            for offset, name, values in test_params:
-                self.log_status(f"🧪 Test {name} (offset {offset})")
-                print(f"🧪 Test {name} (offset {offset})")
-                
-                for value in values:
-                    self.realtime_magicstomp.tweak_parameter(offset, value, immediate=True)
-                    print(f"📤 {name} = {value}")
-                    self.log_status(f"📤 {name} = {value}")
-                    time.sleep(0.8)  # Pause pour voir les changements
-                
-                time.sleep(1)  # Pause entre les paramètres
-            
-            self.log_status("✅ Test avancé terminé - vérifiez l'écran du Magicstomp")
-            print("✅ Test avancé terminé - vérifiez l'écran du Magicstomp")
-            
-        except Exception as e:
-            self.log_status(f"❌ Erreur test avancé: {e}")
-            print(f"❌ Erreur test avancé: {e}")
     
     def refresh_audio_devices(self):
         """Refresh audio device list."""
@@ -3240,86 +3570,6 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
         except Exception as e:
             self.log_status(f"❌ Error refreshing audio devices: {e}")
     
-    def reload_midi_settings(self):
-        """Recharge les paramètres MIDI depuis le fichier de configuration."""
-        try:
-            if self.settings_file.exists():
-                with open(self.settings_file, 'r') as f:
-                    settings = json.load(f)
-                
-                # Recharge les paramètres MIDI
-                if 'midi_input_device' in settings and hasattr(self, 'midi_input_var'):
-                    self.midi_input_var.set(settings['midi_input_device'])
-                    print(f"🔍 DEBUG: Reloaded MIDI input: {settings['midi_input_device']}")
-                
-                if 'midi_output_device' in settings and hasattr(self, 'midi_output_var'):
-                    self.midi_output_var.set(settings['midi_output_device'])
-                    print(f"🔍 DEBUG: Reloaded MIDI output: {settings['midi_output_device']}")
-                    
-                    # Mise à jour automatique du port RealtimeMagicstomp
-                    if hasattr(self, 'realtime_magicstomp') and settings['midi_output_device']:
-                        self.update_realtime_magicstomp_port(settings['midi_output_device'])
-                
-                if 'midi_channels' in settings and hasattr(self, 'midi_channel_vars'):
-                    # Reset all channels first
-                    for var in self.midi_channel_vars.values():
-                        var.set(False)
-                    # Restore selected channels
-                    for channel in settings['midi_channels']:
-                        if channel in self.midi_channel_vars:
-                            self.midi_channel_vars[channel].set(True)
-                    self.midi_channels = settings['midi_channels']
-                    print(f"🔍 DEBUG: Reloaded MIDI channels: {settings['midi_channels']}")
-                
-        except Exception as e:
-            print(f"🔍 DEBUG: Error reloading MIDI settings: {e}")
-    
-    def update_realtime_magicstomp_port(self, port_name):
-        """Met à jour le port MIDI de RealtimeMagicstomp."""
-        try:
-            if hasattr(self, 'realtime_magicstomp') and self.realtime_magicstomp:
-                # Ferme l'ancien port s'il existe
-                if self.realtime_magicstomp.output_port:
-                    self.realtime_magicstomp.output_port.close()
-                
-                # Se connecte au nouveau port
-                self.realtime_magicstomp.midi_port_name = port_name
-                self.realtime_magicstomp._connect_to_port(port_name)
-                
-                if self.realtime_magicstomp.output_port:
-                    print(f"✅ RealtimeMagicstomp connecté au port: {port_name}")
-                    self.log_status(f"✅ MIDI connecté: {port_name}")
-                else:
-                    print(f"❌ Échec connexion RealtimeMagicstomp au port: {port_name}")
-                    self.log_status(f"❌ Échec connexion MIDI: {port_name}")
-                    
-        except Exception as e:
-            print(f"❌ Erreur mise à jour port RealtimeMagicstomp: {e}")
-    
-    def on_midi_input_changed(self, event=None):
-        """Callback quand le port MIDI input change."""
-        try:
-            port_name = self.midi_input_var.get()
-            print(f"🔍 DEBUG: MIDI input changed to: {port_name}")
-            self.save_settings()  # Sauvegarde automatique
-        except Exception as e:
-            print(f"❌ Erreur changement MIDI input: {e}")
-    
-    def on_midi_output_changed(self, event=None):
-        """Callback quand le port MIDI output change."""
-        try:
-            port_name = self.midi_output_var.get()
-            print(f"🔍 DEBUG: MIDI output changed to: {port_name}")
-            
-            # Met à jour RealtimeMagicstomp
-            self.update_realtime_magicstomp_port(port_name)
-            
-            # Sauvegarde automatique
-            self.save_settings()
-            
-        except Exception as e:
-            print(f"❌ Erreur changement MIDI output: {e}")
-    
     def refresh_midi_devices(self):
         """Refresh MIDI device list."""
         try:
@@ -3333,38 +3583,11 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
             self.midi_input_combo['values'] = input_names
             self.midi_output_combo['values'] = output_names
             
-            # Auto-detect Magicstomp and set default selections
-            magicstomp_output = None
-            magicstomp_input = None
-            
-            # Recherche Magicstomp dans les ports de sortie
-            for port in output_names:
-                if 'ub9' in port.lower() or 'magicstomp' in port.lower():
-                    magicstomp_output = port
-                    break
-            
-            # Recherche Magicstomp dans les ports d'entrée
-            for port in input_names:
-                if 'ub9' in port.lower() or 'magicstomp' in port.lower():
-                    magicstomp_input = port
-                    break
-            
-            # Définit les sélections par défaut
+            # Set default selections
             if input_names and not self.midi_input_var.get():
-                if magicstomp_input:
-                    self.midi_input_var.set(magicstomp_input)
-                    print(f"🔍 DEBUG: Auto-selected Magicstomp input: {magicstomp_input}")
-                else:
-                    self.midi_input_var.set(input_names[0])
-                    
+                self.midi_input_var.set(input_names[0])
             if output_names and not self.midi_output_var.get():
-                if magicstomp_output:
-                    self.midi_output_var.set(magicstomp_output)
-                    print(f"🔍 DEBUG: Auto-selected Magicstomp output: {magicstomp_output}")
-                    # Met à jour RealtimeMagicstomp automatiquement
-                    self.update_realtime_magicstomp_port(magicstomp_output)
-                else:
-                    self.midi_output_var.set(output_names[0])
+                self.midi_output_var.set(output_names[0])
             
             self.log_status(f"🔄 Found {len(input_names)} MIDI input, {len(output_names)} MIDI output devices")
             

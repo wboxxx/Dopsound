@@ -19,19 +19,31 @@ from collections import deque
 import threading
 import queue
 
+from magicstomp_sysex import (
+    PATCH_COMMON_LENGTH as SYSEX_PATCH_COMMON_LENGTH,
+    PATCH_EFFECT_LENGTH as SYSEX_PATCH_EFFECT_LENGTH,
+    PATCH_TOTAL_LENGTH as SYSEX_PATCH_TOTAL_LENGTH,
+    SYSEX_HEADER,
+    SYSEX_FOOTER,
+    PARAMETER_SEND_CMD,
+    build_parameter_message,
+    calculate_checksum,
+)
+
 
 class RealtimeMagicstomp:
     """Adaptateur pour tweaking temps réel des paramètres Magicstomp."""
     
     # Constantes du format sysex Magicstomp (basé sur MagicstompFrenzy)
-    SYX_HEADER = [0xF0, 0x43, 0x7D, 0x40, 0x55, 0x42]  # Header pour modification de paramètre
-    SYX_FOOTER = 0xF7
-    PARAM_SEND_CMD = 0x20
-    
-    # Structure des patches
-    PATCH_COMMON_LENGTH = 0x20  # 32 bytes pour les paramètres communs
-    PATCH_EFFECT_LENGTH = 0x7F  # 127 bytes pour les paramètres d'effet
-    PATCH_TOTAL_LENGTH = 0x9F   # 159 bytes total
+    SYX_HEADER = SYSEX_HEADER
+    SYX_FOOTER = SYSEX_FOOTER
+    PARAM_SEND_CMD = PARAMETER_SEND_CMD
+    BULK_RESPONSE_HEADER = [0x43, 0x7D, 0x30, 0x55, 0x42, 0x39, 0x39]
+
+    # Structure des patches (re-export depuis magicstomp_sysex pour compatibilité)
+    PATCH_COMMON_LENGTH = SYSEX_PATCH_COMMON_LENGTH
+    PATCH_EFFECT_LENGTH = SYSEX_PATCH_EFFECT_LENGTH
+    PATCH_TOTAL_LENGTH = SYSEX_PATCH_TOTAL_LENGTH
     
     # Mappings des paramètres communs (offset dans le patch)
     COMMON_PARAMS = {
@@ -199,58 +211,50 @@ class RealtimeMagicstomp:
             return None
     
     def calculate_checksum(self, data: List[int]) -> int:
-        """
-        Calcule le checksum pour les messages sysex (comme MagicstompFrenzy).
-        
+        """Proxy vers :func:`magicstomp_sysex.calculate_checksum`."""
+
+        return calculate_checksum(data)
+
+    def create_parameter_message(
+        self,
+        offset: int,
+        values: List[int],
+        *,
+        section: Optional[int] = None,
+    ) -> List[int]:
+        """Crée un message sysex pour modifier un paramètre.
+
         Args:
-            data: Liste des bytes de données (sans F0 et F7)
-            
-        Returns:
-            Checksum calculé
-        """
-        checksum = 0
-        for byte in data:
-            checksum += byte
-        return (-checksum) & 0x7F  # Négatif + masque sur 7 bits
-    
-    def create_parameter_message(self, offset: int, values: List[int]) -> List[int]:
-        """
-        Crée un message sysex pour modifier un paramètre.
-        
-        Args:
-            offset: Position du paramètre dans le patch (0-158)
+            offset: Position du paramètre dans le patch. Si ``section`` n'est
+                pas précisé, ``offset`` est interprété comme un offset global.
+                Quand ``section`` vaut ``0`` ou ``1`` il s'agit d'un offset de
+                section.
             values: Nouvelles valeurs du paramètre
-            
+            section: Forcer la section (0 = common, 1 = effect)
+
         Returns:
             Message sysex complet
         """
-        message = []
-        
-        # Header
-        message.extend(self.SYX_HEADER)
-        message.append(self.PARAM_SEND_CMD)
-        
-        # Détermine la section (commune ou effet)
-        if offset < self.PATCH_COMMON_LENGTH:
-            message.append(0x00)  # Section commune
-            message.append(offset)
+
+        if section is None:
+            global_offset = offset
+        elif section == 0:
+            global_offset = offset
+        elif section == 1:
+            global_offset = self.PATCH_COMMON_LENGTH + offset
         else:
-            message.append(0x01)  # Section effet
-            message.append(offset - self.PATCH_COMMON_LENGTH)
-        
-        # Ajoute les valeurs
-        message.extend(values)
-        
-        # Calcule et ajoute le checksum
-        checksum = self.calculate_checksum(message[1:])  # Exclut le F0
-        message.append(checksum)
-        
-        # Footer
-        message.append(self.SYX_FOOTER)
-        
-        return message
-    
-    def tweak_parameter(self, offset: int, value: int, immediate: bool = False):
+            raise ValueError(f"Section invalide: {section}")
+
+        return build_parameter_message(global_offset, values)
+
+    def tweak_parameter(
+        self,
+        offset: int,
+        value: int,
+        immediate: bool = False,
+        *,
+        section: Optional[int] = None,
+    ):
         """
         Modifie un paramètre en temps réel.
         
@@ -264,14 +268,23 @@ class RealtimeMagicstomp:
             return
         
         # Vérifie le cache pour éviter les doublons
-        cache_key = offset
+        if section is None:
+            cache_key = offset
+        elif section == 0:
+            cache_key = offset
+        elif section == 1:
+            cache_key = self.PATCH_COMMON_LENGTH + offset
+        else:
+            print(f"❌ Section invalide: {section}")
+            return
+
         with self.cache_lock:
             if cache_key in self.parameter_cache and self.parameter_cache[cache_key] == value:
                 return  # Pas de changement
             self.parameter_cache[cache_key] = value
-        
+
         # Crée le message
-        message = self.create_parameter_message(offset, [value])
+        message = self.create_parameter_message(offset, [value], section=section)
         
         if immediate:
             # Envoi immédiat
@@ -301,13 +314,99 @@ class RealtimeMagicstomp:
     def tweak_multiple_parameters(self, parameters: Dict[int, int], immediate: bool = False):
         """
         Modifie plusieurs paramètres en une fois.
-        
+
         Args:
             parameters: Dict {offset: value}
             immediate: Si True, envoie immédiatement
         """
         for offset, value in parameters.items():
             self.tweak_parameter(offset, value, immediate)
+
+    def request_patch(self, patch_index: int = 0, timeout: float = 2.0) -> Optional[Dict[str, Any]]:
+        """Demande au Magicstomp d'envoyer le patch courant."""
+
+        if not self.output_port:
+            self._initialize_midi()
+
+        if not self.output_port:
+            print("❌ Aucun port MIDI de sortie disponible pour la requête de patch")
+            return None
+
+        if self.input_port is None:
+            try:
+                self.input_port = mido.open_input(self.midi_port_name)
+                print(f"✅ Port MIDI d'entrée ouvert: {self.midi_port_name}")
+            except Exception as exc:  # pragma: no cover - dépend du matériel
+                print(f"❌ Erreur ouverture port MIDI d'entrée: {exc}")
+                return None
+
+        if self.input_port:
+            while self.input_port.poll() is not None:
+                pass
+
+        request = [0x43, 0x7D, 0x50, 0x55, 0x42, 0x30, 0x01, patch_index & 0x7F]
+        try:
+            self.output_port.send(mido.Message('sysex', data=request))
+            print(f"📥 Requête de dump envoyée pour le patch {patch_index + 1:02d}")
+        except Exception as exc:  # pragma: no cover - dépend du matériel
+            print(f"❌ Erreur envoi requête de dump: {exc}")
+            return None
+
+        start = time.time()
+        common_data: Optional[List[int]] = None
+        effect_data: Optional[List[int]] = None
+        received_index = patch_index
+
+        while time.time() - start < timeout:
+            msg = self.input_port.poll() if self.input_port else None
+            if msg is None:
+                time.sleep(0.01)
+                continue
+
+            if msg.type != 'sysex':
+                continue
+
+            data = list(msg.data)
+            if len(data) < 10 or data[:7] != self.BULK_RESPONSE_HEADER:
+                continue
+
+            length = data[8]
+            command = data[9]
+
+            if length == 0 and command == 0x30:
+                if len(data) >= 12:
+                    sub_command = data[10]
+                    received_index = data[11]
+                    if sub_command == 0x11 and common_data and effect_data:
+                        break
+                continue
+
+            if command != 0x20 or len(data) < 13:
+                continue
+
+            section = data[10]
+            section_offset = data[11]
+            payload = data[12:12 + length]
+
+            if section == 0x00 and section_offset == 0x00 and length >= self.PATCH_COMMON_LENGTH:
+                common_data = payload[: self.PATCH_COMMON_LENGTH]
+                print(f"📦 Données 'common' reçues ({len(common_data)} octets)")
+            elif section == 0x01 and section_offset == 0x00 and length >= self.PATCH_EFFECT_LENGTH:
+                effect_data = payload[: self.PATCH_EFFECT_LENGTH]
+                print(f"🎛️ Données d'effet reçues ({len(effect_data)} octets)")
+
+            if common_data and effect_data:
+                break
+
+        if not common_data or not effect_data:
+            print("❌ Patch incomplet reçu depuis le Magicstomp")
+            return None
+
+        return {
+            'patch_index': received_index,
+            'common': common_data,
+            'effect': effect_data,
+        }
     
     def _send_message_immediate(self, message: List[int]):
         """Envoie un message immédiatement."""

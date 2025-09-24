@@ -322,21 +322,21 @@ class AutoToneMatcher:
             patch_number: Magicstomp patch number
             
         Returns:
-            SysEx data bytes
+            List of SysEx messages (each message is a list of bytes)
         """
         self.logger.info(f"Generating SysEx for patch #{patch_number}")
         
         syx_data = self.adapter.json_to_syx(self.patch, patch_number)
-        
-        self.logger.info(f"Generated {len(syx_data)} bytes of SysEx data")
+
+        self.logger.info(f"Generated {len(syx_data)} SysEx message(s)")
         return syx_data
-    
+
     def save_syx(self, syx_data: list, output_path: str) -> None:
         """
         Save SysEx data to file.
         
         Args:
-            syx_data: SysEx data bytes
+            syx_data: SysEx messages
             output_path: Path to output .syx file
         """
         self.logger.info(f"Saving SysEx to {output_path}")
@@ -350,7 +350,7 @@ class AutoToneMatcher:
         Send SysEx data to Magicstomp device.
         
         Args:
-            syx_data: SysEx data bytes
+            syx_data: SysEx messages
             
         Returns:
             True if successful

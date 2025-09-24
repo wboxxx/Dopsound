@@ -73,22 +73,22 @@ def demo_conversion(patch):
     
     # Convertit vers SysEx
     adapter = MagicstompAdapter()
-    syx_data = adapter.json_to_syx(patch, patch_number=1)
-    
-    print(f"✅ Message SysEx créé: {len(syx_data)} bytes")
-    print(f"   Début: {syx_data[:10]}")
-    print(f"   Fin: {syx_data[-10:]}")
-    
+    syx_messages = adapter.json_to_syx(patch, patch_number=1)
+
+    print(f"✅ {len(syx_messages)} message(s) SysEx généré(s)")
+    if syx_messages:
+        print(f"   Premier message: {syx_messages[0]}")
+
     # Sauvegarde le fichier SysEx
     syx_file = "test_patch.syx"
-    adapter.save_to_file(syx_data, syx_file)
+    adapter.save_to_file(syx_messages, syx_file)
     print(f"✅ Fichier SysEx sauvegardé: {syx_file}")
     
     # Affiche les ports MIDI disponibles
     print("\n🔌 Ports MIDI disponibles:")
     adapter.list_midi_ports()
-    
-    return syx_data
+
+    return syx_messages
 
 
 def demo_cli():
@@ -122,7 +122,7 @@ def main():
         patch = demo_analysis()
         
         # Démonstration 2: Conversion SysEx
-        syx_data = demo_conversion(patch)
+    syx_data = demo_conversion(patch)
         
         # Démonstration 3: Usage CLI
         demo_cli()
