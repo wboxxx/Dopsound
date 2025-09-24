@@ -174,7 +174,7 @@ class SplitVerticalGUI:
         self.load_settings()
         self.create_widgets()
         self.init_hil_system()
-        # MIDI connection will be initialized after devices are refreshed
+        self.init_midi_connection()
     
     def setup_styles(self):
         """Setup compact styling."""
@@ -245,8 +245,6 @@ class SplitVerticalGUI:
             try:
                 self.refresh_audio_devices()
                 self.refresh_midi_devices()
-                # Initialize MIDI connection after devices are refreshed
-                self.init_midi_connection()
             except Exception as e:
                 # Fallback if status_text is still not available
                 print(f"Error initializing devices: {e}")
@@ -978,7 +976,6 @@ class SplitVerticalGUI:
         ttk.Label(midi_output_frame, text="MIDI Output:", style='Info.TLabel').pack(side=tk.LEFT, padx=(0, 10))
         
         self.midi_output_var = tk.StringVar()
-        self.midi_output_var.trace('w', self.on_midi_output_changed)
         self.midi_output_combo = ttk.Combobox(midi_output_frame, textvariable=self.midi_output_var,
                                              state="readonly", width=40)
         self.midi_output_combo.pack(side=tk.LEFT, padx=(0, 10))
@@ -1005,6 +1002,9 @@ class SplitVerticalGUI:
         
         # Recharge les paramètres MIDI après création des widgets
         self.reload_midi_settings()
+        
+        # Recharge les fichiers et patch après création des widgets
+        self.reload_file_and_patch_settings()
         
         # Test Audio Button
         test_audio_frame = ttk.LabelFrame(self.settings_frame, text="🎧 Test Audio", padding=10)
@@ -1291,29 +1291,12 @@ class SplitVerticalGUI:
     def init_midi_connection(self):
         """Initialize MIDI connection to Magicstomp."""
         try:
-            # Get saved MIDI output device from settings
-            midi_output_device = getattr(self, 'midi_output_var', None)
-            if midi_output_device and hasattr(midi_output_device, 'get'):
-                saved_output = midi_output_device.get()
-                if saved_output and saved_output != "Default MIDI Output":
-                    print(f"🔍 DEBUG: Using saved MIDI output: {saved_output}")
-                    # Reinitialize RealtimeMagicstomp with saved port
-                    self.realtime_magicstomp = RealtimeMagicstomp(midi_port_name=saved_output, auto_detect=False)
-                    self.log_status(f"✅ MIDI connection restored to: {saved_output}")
-                else:
-                    # Use auto-detection if no saved port
-                    self.realtime_magicstomp.connect()
-                    if self.realtime_magicstomp.output_port:
-                        self.log_status("✅ MIDI connection to Magicstomp established (auto-detected)")
-                    else:
-                        self.log_status("⚠️ MIDI connection failed - no output port found")
+            # Try to connect to Magicstomp
+            self.realtime_magicstomp.connect()
+            if self.realtime_magicstomp.output_port:
+                self.log_status("✅ MIDI connection to Magicstomp established")
             else:
-                # Fallback to auto-detection
-                self.realtime_magicstomp.connect()
-                if self.realtime_magicstomp.output_port:
-                    self.log_status("✅ MIDI connection to Magicstomp established (auto-detected)")
-                else:
-                    self.log_status("⚠️ MIDI connection failed - no output port found")
+                self.log_status("⚠️ MIDI connection failed - no output port found")
         except Exception as e:
             self.log_status(f"❌ Error initializing MIDI connection: {e}")
     
@@ -3629,6 +3612,34 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
         except Exception as e:
             print(f"🔍 DEBUG: Error reloading MIDI settings: {e}")
     
+    def reload_file_and_patch_settings(self):
+        """Recharge les fichiers et patch depuis le fichier de configuration."""
+        try:
+            if self.settings_file.exists():
+                with open(self.settings_file, 'r') as f:
+                    settings = json.load(f)
+
+                # Recharge les fichiers
+                if 'last_target_file' in settings and settings['last_target_file']:
+                    self.target_file = settings['last_target_file']
+                    if hasattr(self, 'target_var'):
+                        self.target_var.set(f"Target: {Path(self.target_file).name}")
+                    self.log_status(f"📁 Restored target: {Path(self.target_file).name}")
+                    print(f"🔍 DEBUG: Reloaded target file: {self.target_file}")
+
+                if 'last_di_file' in settings and settings['last_di_file']:
+                    self.di_file = settings['last_di_file']
+                    if hasattr(self, 'di_var'):
+                        self.di_var.set(f"DI: {Path(self.di_file).name}")
+                    self.log_status(f"📁 Restored DI: {Path(self.di_file).name}")
+                    print(f"🔍 DEBUG: Reloaded DI file: {self.di_file}")
+
+                # Le patch est déjà géré par restore_application_state()
+                # Pas besoin de le recharger ici
+
+        except Exception as e:
+            print(f"🔍 DEBUG: Error reloading file and patch settings: {e}")
+    
     def update_realtime_magicstomp_port(self, port_name):
         """Met à jour le port MIDI de RealtimeMagicstomp."""
         try:
@@ -3731,20 +3742,6 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
             self.midi_output_var.set("Default MIDI Output")
         except Exception as e:
             self.log_status(f"❌ Error refreshing MIDI devices: {e}")
-    
-    def on_midi_output_changed(self, *args):
-        """Handle MIDI output device change."""
-        try:
-            new_output = self.midi_output_var.get()
-            if new_output and new_output != "Default MIDI Output":
-                print(f"🔍 DEBUG: MIDI output changed to: {new_output}")
-                # Reinitialize RealtimeMagicstomp with new port
-                self.realtime_magicstomp = RealtimeMagicstomp(midi_port_name=new_output, auto_detect=False)
-                self.log_status(f"✅ MIDI connection updated to: {new_output}")
-                # Save settings
-                self.save_settings()
-        except Exception as e:
-            self.log_status(f"❌ Error updating MIDI connection: {e}")
     
     def update_midi_channels(self, channel):
         """Update selected MIDI channels."""
