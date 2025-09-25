@@ -763,23 +763,24 @@ class MagicstompHILGUI:
         
         try:
             self.update_status("Sending patch to Magicstomp...")
-            print("🔍 DEBUG: Starting patch send process...")
-            print(f"🔍 DEBUG: Current patch: {self.current_patch}")
+            from debug_logger import debug_logger
+debug_logger.log(f"🔍 DEBUG: Starting patch send process...")
+debug_logger.log(f"🔍 DEBUG: Current patch: {self.current_patch}")
             
             # Import the adapter
             from adapter_magicstomp import MagicstompAdapter
             adapter = MagicstompAdapter()
             
             # List available MIDI ports first
-            print("🔍 DEBUG: Listing MIDI ports...")
+debug_logger.log(f"🔍 DEBUG: Listing MIDI ports...")
             adapter.list_midi_ports()
             
             # Convert patch to SysEx
-            print("🔍 DEBUG: Converting patch to SysEx...")
+debug_logger.log(f"🔍 DEBUG: Converting patch to SysEx...")
             syx_data = adapter.json_to_syx(self.current_patch, patch_number=0)
-            print(f"🔍 DEBUG: Nombre de messages SysEx: {len(syx_data)}")
+debug_logger.log(f"🔍 DEBUG: Nombre de messages SysEx: {len(syx_data)}")
             if syx_data:
-                print(f"🔍 DEBUG: Premier message: {syx_data[0]}")
+debug_logger.log(f"🔍 DEBUG: Premier message: {syx_data[0]}")
             
             # Get selected MIDI port
             selected_port = self.midi_port_var.get()
@@ -788,7 +789,7 @@ class MagicstompHILGUI:
                 return
             
             # Send to device
-            print(f"🔍 DEBUG: Sending to Magicstomp device via port: {selected_port}")
+debug_logger.log(f"🔍 DEBUG: Sending to Magicstomp device via port: {selected_port}")
             success = adapter.send_to_device(syx_data, port_name=selected_port)
             
             if success:
@@ -826,7 +827,7 @@ class MagicstompHILGUI:
             
             # Get all output ports
             output_ports = mido.get_output_names()
-            print(f"🔍 DEBUG: Refreshing MIDI ports: {output_ports}")
+debug_logger.log(f"🔍 DEBUG: Refreshing MIDI ports: {output_ports}")
             
             # Update combobox
             self.midi_port_combo['values'] = output_ports
@@ -834,7 +835,7 @@ class MagicstompHILGUI:
             # Auto-select first port if none selected
             if not self.midi_port_var.get() and output_ports:
                 self.midi_port_var.set(output_ports[0])
-                print(f"🔍 DEBUG: Auto-selected first port: {output_ports[0]}")
+debug_logger.log(f"🔍 DEBUG: Auto-selected first port: {output_ports[0]}")
             
             self.update_status(f"MIDI ports refreshed: {len(output_ports)} ports found")
             
@@ -855,7 +856,7 @@ class MagicstompHILGUI:
             )
             
             if filename:
-                print(f"🔍 DEBUG: Loading patch from: {filename}")
+debug_logger.log(f"🔍 DEBUG: Loading patch from: {filename}")
                 
                 # Load patch from file
                 with open(filename, 'r') as f:
@@ -1162,7 +1163,7 @@ class MagicstompHILGUI:
         """Load settings from file."""
         try:
             if not self.settings_file.exists():
-                print("🔍 DEBUG: No settings file found, using defaults")
+debug_logger.log(f"🔍 DEBUG: No settings file found, using defaults")
                 return
             
             with open(self.settings_file, 'r') as f:

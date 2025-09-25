@@ -1,0 +1,90 @@
+ANALYSE DU PATCH "DISTORTION MULTI (FLANGE)" - WALL DISTORT
+================================================================
+
+Patch Common Parameters:
+- Type: Distortion Multi (Flange)
+- Name: Wall Distort
+- Knob 1: Gain
+- Knob 2: Master
+- Knob 3: Flanger Depth
+
+EFFETS COMPOSANTS:
+
+1. DISTORTION SECTION:
+   - Type: Overdrive 1
+   - Gain: 10.0
+   - Master: 3.0
+   - Tone: 10.0
+   - EQ 1: Freq=50.0 Hz, Gain=4.0 dB, Q=0.100
+   - EQ 2: Freq=200 Hz, Gain=0.0 dB, Q=0.100
+   - EQ 3: Freq=600 Hz, Gain=0.0 dB, Q=0.100
+   - EQ 4: Freq=2.00 kHz, Gain=0.0 dB, Q=0.100
+   - Pre EQ Level: 10.0
+   - Pre EQ 1: Freq=50.0 Hz, Gain=4.0 dB, Q=0.100
+   - Pre EQ 2: Freq=200 Hz, Gain=-4.0 dB, Q=0.100
+   - Pre EQ 3: Freq=1.00 kHz, Gain=-4.0 dB, Q=0.100
+
+2. NOISE GATE SECTION:
+   - Threshold: 0.0
+   - Attack: 4 ms
+   - Hold: 153.4 ms
+   - Decay: 41 ms
+
+3. COMPRESSOR SECTION:
+   - Threshold: 0.0 dB
+   - Attack: 7 ms
+   - Knee: 4
+   - Ratio: ∞ : 1
+   - Release: 273 ms
+   - Gain: 2.5 dB
+
+4. FLANGE SECTION:
+   - Wave: Sine
+   - Speed: 2.4
+   - Delay: 1.0 ms
+   - Level: 10.0
+   - Depth: 3.0
+   - Feedback: 29
+
+5. DELAY SECTION:
+   - Level: 0.0
+   - Tap L: 100
+   - Tap R: 100
+   - HPF: Thru
+   - Feedback: 300.0 ms
+   - Feedback Gain: 1
+   - High: 0.7
+   - LPF: Thru
+
+6. REVERB SECTION:
+   - Level: 0.0
+   - High: 0.5
+   - Ini. Delay: 4.6 ms
+   - Time: 4.7 s
+   - Diffusion: 5
+   - Density: 90
+
+EFFETS CIBLES POUR L'IMPLÉMENTATION:
+====================================
+
+1. Distortion (Overdrive 1)
+2. Noise Gate
+3. Compressor
+4. Flange
+5. Mono Delay
+6. Reverb
+
+NOTES TECHNIQUES:
+================
+- Le patch utilise l'ID 0x3C (60) = "Distortion Multi (Flange)"
+- Chaque sous-effet a ses propres paramètres spécifiques
+- Les paramètres sont organisés en sections logiques
+- Les valeurs numériques correspondent aux réglages du Magicstomp
+- L'interface MagicstompFrenzy affiche tous ces effets simultanément
+
+PROCHAINES ÉTAPES:
+==================
+1. Implémenter la détection des effets composites (0x3C)
+2. Créer des widgets pour chaque sous-effet
+3. Parser les paramètres depuis les données SYSEX
+4. Afficher tous les effets dans l'interface comme MagicstompFrenzy

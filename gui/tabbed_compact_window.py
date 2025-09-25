@@ -465,7 +465,8 @@ class TabbedCompactGUI:
             messagebox.showerror("Magicstomp", "Invalid patch data received from Magicstomp.")
             return
 
-        effect_type = common_section[0]
+        # L'ID de l'effet est à l'octet 1 dans la structure SYSEX du Magicstomp (comme MagicstompFrenzy)
+        effect_type = common_section[1] if len(common_section) > 1 else common_section[0]
         effect_name = EffectRegistry.get_effect_name(effect_type)
 
         if not EffectRegistry.is_effect_supported(effect_type):

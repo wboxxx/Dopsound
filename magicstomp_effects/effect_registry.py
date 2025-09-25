@@ -20,6 +20,7 @@ from .modulation_widgets import (
     PhaserWidget,
     TremoloWidget
 )
+from .distortion_multi_flange_widget import DistortionMultiFlangeWidget
 from .reverb_widgets import (
     ReverbWidget,
     GateReverbWidget,
@@ -195,7 +196,7 @@ class EffectRegistry:
         0x39: TremoloWidget,        # "Amp Multi (Tremolo)"
         0x3A: PhaserWidget,         # "Amp Multi (Phaser)"
         0x3B: ChorusWidget,         # "Distortion Multi (Chorus)"
-        0x3C: FlangeWidget,         # "Distortion Multi (Flange)"
+        0x3C: DistortionMultiFlangeWidget,  # "Distortion Multi (Flange)"
         0x3D: TremoloWidget,        # "Distortion Multi (Tremolo)"
         0x3E: PhaserWidget,         # "Distortion Multi (Phaser)"
         0x3F: AmpSimulatorWidget,   # "Bass Preamp"

@@ -107,6 +107,9 @@ private:
     MidiClientHandle handle;
 
     void midiSystemInit();
+    
+    // Universal SysEx logging function
+    void logSysExMessage(const QByteArray &data, const QString &paramName = QString(), int offset = -1, int length = -1);
 
     MidiClientPortId thisInPort;
     MidiClientPortId thisOutPort;

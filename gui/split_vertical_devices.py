@@ -28,64 +28,65 @@ class SplitVerticalGUIDeviceMixin:
     
     def send_patch_to_magicstomp(self):
         """Send current patch to Magicstomp device."""
-        print("🔍 DEBUG: Starting send_patch_to_magicstomp()")
+        from debug_logger import debug_logger
+debug_logger.log(f"🔍 DEBUG: Starting send_patch_to_magicstomp()")
         
         if not self.current_patch:
             self.log_status("⚠️ No patch to send")
-            print("🔍 DEBUG: No current patch to send")
+debug_logger.log(f"🔍 DEBUG: No current patch to send")
             return
         
         try:
             self.log_status("📤 Sending patch to Magicstomp...")
-            print("🔍 DEBUG: Starting patch send process...")
-            print(f"🔍 DEBUG: Current patch: {self.current_patch}")
+debug_logger.log(f"🔍 DEBUG: Starting patch send process...")
+debug_logger.log(f"🔍 DEBUG: Current patch: {self.current_patch}")
             
             # Import the adapter
             from adapter_magicstomp import MagicstompAdapter
             adapter = MagicstompAdapter()
             
             # List available MIDI ports first
-            print("🔍 DEBUG: Listing MIDI ports...")
+debug_logger.log(f"🔍 DEBUG: Listing MIDI ports...")
             adapter.list_midi_ports()
             
             # Convert patch to SysEx
-            print("🔍 DEBUG: Converting patch to SysEx...")
+debug_logger.log(f"🔍 DEBUG: Converting patch to SysEx...")
             syx_data = adapter.json_to_syx(self.current_patch, patch_number=0)
-            print(f"🔍 DEBUG: Nombre de messages SysEx: {len(syx_data)}")
+debug_logger.log(f"🔍 DEBUG: Nombre de messages SysEx: {len(syx_data)}")
             if syx_data:
-                print(f"🔍 DEBUG: Premier message: {syx_data[0]}")
+debug_logger.log(f"🔍 DEBUG: Premier message: {syx_data[0]}")
             
             # Get selected MIDI port from settings
             midi_output = self.midi_output_var.get() if hasattr(self, 'midi_output_var') else None
             if not midi_output:
                 self.log_status("⚠️ Please select MIDI output device in Settings tab")
-                print("🔍 DEBUG: No MIDI output device selected")
+debug_logger.log(f"🔍 DEBUG: No MIDI output device selected")
                 return
             
             # Send to device using existing port if available
-            print(f"🔍 DEBUG: Sending to MIDI port: {midi_output}")
+debug_logger.log(f"🔍 DEBUG: Sending to MIDI port: {midi_output}")
             existing_port = None
             if hasattr(self, 'realtime_magicstomp'):
-                print(f"🔍 DEBUG: RealtimeMagicstomp exists: {self.realtime_magicstomp}")
+debug_logger.log(f"🔍 DEBUG: RealtimeMagicstomp exists: {self.realtime_magicstomp}")
                 if hasattr(self.realtime_magicstomp, 'output_port') and self.realtime_magicstomp.output_port:
                     existing_port = self.realtime_magicstomp.output_port
-                    print("🔍 DEBUG: Using existing RealtimeMagicstomp port")
+debug_logger.log(f"🔍 DEBUG: Using existing RealtimeMagicstomp port")
                 else:
-                    print("🔍 DEBUG: No existing port available in RealtimeMagicstomp")
+debug_logger.log(f"🔍 DEBUG: No existing port available in RealtimeMagicstomp")
             else:
-                print("🔍 DEBUG: No RealtimeMagicstomp available")
+debug_logger.log(f"🔍 DEBUG: No RealtimeMagicstomp available")
             success = adapter.send_to_device(syx_data, midi_output, existing_port)
             
             if success:
                 self.log_status("✅ Patch sent to Magicstomp successfully!")
-                print("🔍 DEBUG: Patch sent successfully")
+debug_logger.log(f"🔍 DEBUG: Patch sent successfully")
             else:
                 self.log_status("❌ Failed to send patch to Magicstomp")
-                print("🔍 DEBUG: Patch send failed")
+debug_logger.log(f"🔍 DEBUG: Patch send failed")
             
         except Exception as e:
             self.log_status(f"❌ Error sending patch: {e}")
-            print(f"🔍 DEBUG: Error sending patch: {e}")
+debug_logger.log(f"🔍 DEBUG: Error sending patch: {e}")
             import traceback
             traceback.print_exc()
     
@@ -137,11 +138,11 @@ class SplitVerticalGUIDeviceMixin:
                 # Recharge les paramètres MIDI
                 if 'midi_input_device' in settings and hasattr(self, 'midi_input_var'):
                     self.midi_input_var.set(settings['midi_input_device'])
-                    print(f"🔍 DEBUG: Reloaded MIDI input: {settings['midi_input_device']}")
+debug_logger.log(f"🔍 DEBUG: Reloaded MIDI input: {settings['midi_input_device']}")
                 
                 if 'midi_output_device' in settings and hasattr(self, 'midi_output_var'):
                     self.midi_output_var.set(settings['midi_output_device'])
-                    print(f"🔍 DEBUG: Reloaded MIDI output: {settings['midi_output_device']}")
+debug_logger.log(f"🔍 DEBUG: Reloaded MIDI output: {settings['midi_output_device']}")
                     
                     # Mise à jour automatique du port RealtimeMagicstomp
                     if hasattr(self, 'realtime_magicstomp') and settings['midi_output_device']:
@@ -156,10 +157,10 @@ class SplitVerticalGUIDeviceMixin:
                         if channel in self.midi_channel_vars:
                             self.midi_channel_vars[channel].set(True)
                     self.midi_channels = settings['midi_channels']
-                    print(f"🔍 DEBUG: Reloaded MIDI channels: {settings['midi_channels']}")
+debug_logger.log(f"🔍 DEBUG: Reloaded MIDI channels: {settings['midi_channels']}")
                 
         except Exception as e:
-            print(f"🔍 DEBUG: Error reloading MIDI settings: {e}")
+debug_logger.log(f"🔍 DEBUG: Error reloading MIDI settings: {e}")
     
     def reload_file_and_patch_settings(self):
         """Recharge les fichiers et patch depuis le fichier de configuration."""
@@ -174,20 +175,20 @@ class SplitVerticalGUIDeviceMixin:
                     if hasattr(self, 'target_var'):
                         self.target_var.set(f"Target: {Path(self.target_file).name}")
                     self.log_status(f"📁 Restored target: {Path(self.target_file).name}")
-                    print(f"🔍 DEBUG: Reloaded target file: {self.target_file}")
+debug_logger.log(f"🔍 DEBUG: Reloaded target file: {self.target_file}")
 
                 if 'last_di_file' in settings and settings['last_di_file']:
                     self.di_file = settings['last_di_file']
                     if hasattr(self, 'di_var'):
                         self.di_var.set(f"DI: {Path(self.di_file).name}")
                     self.log_status(f"📁 Restored DI: {Path(self.di_file).name}")
-                    print(f"🔍 DEBUG: Reloaded DI file: {self.di_file}")
+debug_logger.log(f"🔍 DEBUG: Reloaded DI file: {self.di_file}")
 
                 # Le patch est déjà géré par restore_application_state()
                 # Pas besoin de le recharger ici
 
         except Exception as e:
-            print(f"🔍 DEBUG: Error reloading file and patch settings: {e}")
+debug_logger.log(f"🔍 DEBUG: Error reloading file and patch settings: {e}")
     
     def update_realtime_magicstomp_port(self, port_name):
         """Met à jour le port MIDI de RealtimeMagicstomp."""
@@ -215,7 +216,7 @@ class SplitVerticalGUIDeviceMixin:
         """Callback quand le port MIDI input change."""
         try:
             port_name = self.midi_input_var.get()
-            print(f"🔍 DEBUG: MIDI input changed to: {port_name}")
+debug_logger.log(f"🔍 DEBUG: MIDI input changed to: {port_name}")
             self.save_settings()  # Sauvegarde automatique
         except Exception as e:
             print(f"❌ Erreur changement MIDI input: {e}")
@@ -224,7 +225,7 @@ class SplitVerticalGUIDeviceMixin:
         """Callback quand le port MIDI output change."""
         try:
             port_name = self.midi_output_var.get()
-            print(f"🔍 DEBUG: MIDI output changed to: {port_name}")
+debug_logger.log(f"🔍 DEBUG: MIDI output changed to: {port_name}")
             
             # Met à jour RealtimeMagicstomp
             self.update_realtime_magicstomp_port(port_name)
@@ -268,18 +269,25 @@ class SplitVerticalGUIDeviceMixin:
             if input_names and not self.midi_input_var.get():
                 if magicstomp_input:
                     self.midi_input_var.set(magicstomp_input)
-                    print(f"🔍 DEBUG: Auto-selected Magicstomp input: {magicstomp_input}")
+debug_logger.log(f"🔍 DEBUG: Auto-selected Magicstomp input: {magicstomp_input}")
                 else:
+                    # Si pas de port d'entrée Magicstomp, utiliser le premier disponible
                     self.midi_input_var.set(input_names[0])
                     
             if output_names and not self.midi_output_var.get():
                 if magicstomp_output:
                     self.midi_output_var.set(magicstomp_output)
-                    print(f"🔍 DEBUG: Auto-selected Magicstomp output: {magicstomp_output}")
+debug_logger.log(f"🔍 DEBUG: Auto-selected Magicstomp output: {magicstomp_output}")
                     # Met à jour RealtimeMagicstomp automatiquement
                     self.update_realtime_magicstomp_port(magicstomp_output)
                 else:
                     self.midi_output_var.set(output_names[0])
+            
+            # Si pas de port d'entrée Magicstomp trouvé, mais qu'on a un port de sortie
+            # Essayer d'utiliser le port de sortie pour l'entrée aussi
+            if not magicstomp_input and magicstomp_output and not self.midi_input_var.get():
+debug_logger.log(f"🔍 DEBUG: No Magicstomp input port found, trying to use output port for input: {magicstomp_output}")
+                self.midi_input_var.set(magicstomp_output)
             
             self.log_status(f"🔄 Found {len(input_names)} MIDI input, {len(output_names)} MIDI output devices")
             

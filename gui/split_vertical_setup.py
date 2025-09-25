@@ -157,10 +157,11 @@ class SplitVerticalGUISetupMixin:
                 # Load current patch
                 if 'last_loaded_patch' in settings and settings['last_loaded_patch']:
                     self.current_patch = settings['last_loaded_patch']
-                    print(f"🔍 DEBUG: Loaded current_patch from settings: {self.current_patch.get('meta', {}).get('name', 'Unknown')}")
+                    from debug_logger import debug_logger
+debug_logger.log(f"🔍 DEBUG: Loaded current_patch from settings: {self.current_patch.get('meta', {}).get('name', 'Unknown')}")
                 else:
                     self.current_patch = None
-                    print("🔍 DEBUG: No current_patch in settings, set to None")
+debug_logger.log(f"🔍 DEBUG: No current_patch in settings, set to None")
                 
                 self.log_status("✅ Settings loaded successfully")
             else:
@@ -189,10 +190,10 @@ class SplitVerticalGUISetupMixin:
             with open(self.settings_file, 'w') as f:
                 json.dump(settings, f, indent=2)
             
-            print(f"🔍 DEBUG: Saved file selections - Target: {self.target_file}, DI: {self.di_file}")
+debug_logger.log(f"🔍 DEBUG: Saved file selections - Target: {self.target_file}, DI: {self.di_file}")
             
         except Exception as e:
-            print(f"🔍 DEBUG: Error saving file selections: {e}")
+debug_logger.log(f"🔍 DEBUG: Error saving file selections: {e}")
     
     def get_current_tab_index(self):
         """Get the index of the currently active tab."""
@@ -206,60 +207,60 @@ class SplitVerticalGUISetupMixin:
     def restore_application_state(self):
         """Restore application state from saved settings."""
         try:
-            print("🔍 DEBUG: Starting restore_application_state()")
-            print(f"🔍 DEBUG: last_active_tab = {getattr(self, 'last_active_tab', 'NOT SET')}")
-            print(f"🔍 DEBUG: last_loaded_patch = {getattr(self, 'last_loaded_patch', 'NOT SET')}")
-            print(f"🔍 DEBUG: notebook exists: {hasattr(self, 'notebook')}")
+debug_logger.log(f"🔍 DEBUG: Starting restore_application_state()")
+debug_logger.log(f"🔍 DEBUG: last_active_tab = {getattr(self, 'last_active_tab', 'NOT SET')}")
+debug_logger.log(f"🔍 DEBUG: last_loaded_patch = {getattr(self, 'last_loaded_patch', 'NOT SET')}")
+debug_logger.log(f"🔍 DEBUG: notebook exists: {hasattr(self, 'notebook')}")
             if hasattr(self, 'notebook'):
-                print(f"🔍 DEBUG: notebook tabs count: {self.notebook.index('end')}")
+debug_logger.log(f"🔍 DEBUG: notebook tabs count: {self.notebook.index('end')}")
             
             # Restore active tab
             if hasattr(self, 'last_active_tab') and hasattr(self, 'notebook'):
-                print(f"🔍 DEBUG: Attempting to restore tab {self.last_active_tab}")
+debug_logger.log(f"🔍 DEBUG: Attempting to restore tab {self.last_active_tab}")
                 if 0 <= self.last_active_tab < self.notebook.index('end'):
                     self.notebook.select(self.last_active_tab)
                     self.log_status(f"🔄 Restored tab {self.last_active_tab}")
-                    print(f"🔍 DEBUG: Successfully restored tab {self.last_active_tab}")
+debug_logger.log(f"🔍 DEBUG: Successfully restored tab {self.last_active_tab}")
                 else:
-                    print(f"🔍 DEBUG: Tab index {self.last_active_tab} out of range (0-{self.notebook.index('end')-1})")
+debug_logger.log(f"🔍 DEBUG: Tab index {self.last_active_tab} out of range (0-{self.notebook.index('end')-1})")
             else:
-                print("🔍 DEBUG: No last_active_tab or notebook available")
+debug_logger.log(f"🔍 DEBUG: No last_active_tab or notebook available")
             
             # Store patch for later restoration after widgets are loaded
             if hasattr(self, 'last_loaded_patch') and self.last_loaded_patch:
-                print(f"🔍 DEBUG: Patch available for restoration: {self.last_loaded_patch.get('meta', {}).get('name', 'Unknown')}")
+debug_logger.log(f"🔍 DEBUG: Patch available for restoration: {self.last_loaded_patch.get('meta', {}).get('name', 'Unknown')}")
                 self.patch_to_restore = self.last_loaded_patch
-                print(f"🔍 DEBUG: Stored patch_to_restore: {self.patch_to_restore is not None}")
+debug_logger.log(f"🔍 DEBUG: Stored patch_to_restore: {self.patch_to_restore is not None}")
                 self.log_status(f"🔄 Patch queued for restoration: {self.last_loaded_patch.get('meta', {}).get('name', 'Unknown')}")
                 
                 # Trigger restoration with a longer delay to allow widgets to load
-                print("🔍 DEBUG: Scheduling patch restoration with 2 second delay")
+debug_logger.log(f"🔍 DEBUG: Scheduling patch restoration with 2 second delay")
                 self.root.after(2000, self.reload_restored_patch)
             else:
-                print("🔍 DEBUG: No patch to restore")
+debug_logger.log(f"🔍 DEBUG: No patch to restore")
                 self.patch_to_restore = None
-                print(f"🔍 DEBUG: Set patch_to_restore to None")
+debug_logger.log(f"🔍 DEBUG: Set patch_to_restore to None")
                 
-            print("🔍 DEBUG: restore_application_state() completed")
+debug_logger.log(f"🔍 DEBUG: restore_application_state() completed")
                     
         except Exception as e:
             self.log_status(f"⚠️ Error restoring application state: {e}")
-            print(f"🔍 DEBUG: Error restoring state: {e}")
+debug_logger.log(f"🔍 DEBUG: Error restoring state: {e}")
             import traceback
-            print(f"🔍 DEBUG: Traceback: {traceback.format_exc()}")
+debug_logger.log(f"🔍 DEBUG: Traceback: {traceback.format_exc()}")
     
     def reload_restored_patch(self):
         """Reload the restored patch to properly initialize widgets."""
         try:
             if hasattr(self, 'patch_to_restore') and self.patch_to_restore:
-                print("🔍 DEBUG: Restoring queued patch to initialize widgets")
+debug_logger.log(f"🔍 DEBUG: Restoring queued patch to initialize widgets")
                 self.log_status("🔄 Restoring patch to initialize widgets...")
                 
                 # Set the current patch
                 self.current_patch = self.patch_to_restore
                 
                 # Auto-load effects from patch (this will create the widgets)
-                print("🔍 DEBUG: Auto-loading effects from patch...")
+debug_logger.log(f"🔍 DEBUG: Auto-loading effects from patch...")
                 self.auto_load_effects_from_patch()
                 
                 # Apply patch parameters to widgets after a short delay
@@ -270,18 +271,23 @@ class SplitVerticalGUISetupMixin:
                 
                 # Trigger analysis to fully initialize the system
                 if hasattr(self, 'run_analysis'):
-                    print("🔍 DEBUG: Triggering analysis to complete initialization")
+debug_logger.log(f"🔍 DEBUG: Triggering analysis to complete initialization")
                     self.run_analysis()
                 
                 self.log_status("✅ Patch restored and widgets initialized")
-                print("🔍 DEBUG: Patch restoration completed")
+debug_logger.log(f"🔍 DEBUG: Patch restoration completed")
             else:
-                print("🔍 DEBUG: No queued patch to restore")
+debug_logger.log(f"🔍 DEBUG: No queued patch to restore")
+                # If no patch to restore, try to download from Magicstomp
+                if hasattr(self, 'download_current_patch'):
+debug_logger.log(f"🔍 DEBUG: No patch to restore, attempting to download from Magicstomp")
+                    self.log_status("🔄 No saved patch, downloading from Magicstomp...")
+                    self.root.after(1000, self.download_current_patch)
         except Exception as e:
             self.log_status(f"⚠️ Error restoring patch: {e}")
-            print(f"🔍 DEBUG: Error restoring patch: {e}")
+debug_logger.log(f"🔍 DEBUG: Error restoring patch: {e}")
             import traceback
-            print(f"🔍 DEBUG: Traceback: {traceback.format_exc()}")
+debug_logger.log(f"🔍 DEBUG: Traceback: {traceback.format_exc()}")
     
     def on_tab_changed(self, event=None):
         """Handle tab change event - save current state."""
@@ -290,16 +296,16 @@ class SplitVerticalGUISetupMixin:
             if hasattr(self, 'notebook'):
                 self.save_settings()
         except Exception as e:
-            print(f"🔍 DEBUG: Error saving state on tab change: {e}")
+debug_logger.log(f"🔍 DEBUG: Error saving state on tab change: {e}")
     
     def save_settings(self):
         """Save current settings to file."""
         try:
             # Debug current state before saving
-            print(f"🔍 DEBUG: Saving settings - current_patch exists: {hasattr(self, 'current_patch')}")
+debug_logger.log(f"🔍 DEBUG: Saving settings - current_patch exists: {hasattr(self, 'current_patch')}")
             if hasattr(self, 'current_patch'):
-                print(f"🔍 DEBUG: current_patch value: {self.current_patch}")
-            print(f"🔍 DEBUG: last_active_tab will be: {self.get_current_tab_index()}")
+debug_logger.log(f"🔍 DEBUG: current_patch value: {self.current_patch}")
+debug_logger.log(f"🔍 DEBUG: last_active_tab will be: {self.get_current_tab_index()}")
             
             settings = {
                 # Audio settings
@@ -329,11 +335,11 @@ class SplitVerticalGUISetupMixin:
                 'last_loaded_patch': self.current_patch if hasattr(self, 'current_patch') and self.current_patch else None,
             }
             
-            print(f"🔍 DEBUG: Writing to settings file: {self.settings_file}")
+debug_logger.log(f"🔍 DEBUG: Writing to settings file: {self.settings_file}")
             with open(self.settings_file, 'w') as f:
                 json.dump(settings, f, indent=2)
             
-            print(f"🔍 DEBUG: Settings file written successfully")
+debug_logger.log(f"🔍 DEBUG: Settings file written successfully")
             self.log_status("✅ Settings saved successfully")
             
         except Exception as e:

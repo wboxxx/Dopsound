@@ -302,25 +302,39 @@ class BaseEffectWidget(ttk.Frame):
         else:
             data = list(effect_data)
 
+        from debug_logger import debug_logger
+        debug_logger.log(f"🔍 DEBUG: apply_magicstomp_data - data length: {len(data)}")
+        debug_logger.log_sysex_data(data, "Data preview")
+
         applied_params: Dict[str, Any] = {}
 
+        # Debug: compter les widgets trouvés
+        widget_count = 0
         for widget in self._iter_parameter_widgets(self):
+            widget_count += 1
             offset = getattr(widget, "offset", None)
             length = getattr(widget, "length", 1)
             param_name = getattr(widget, "param_name", None)
 
+            debug_logger.log(f"🔍 DEBUG: Found widget {widget_count}: {param_name} at offset {offset}, length {length}")
+
             if param_name is None or offset is None:
+                debug_logger.log(f"🔍 DEBUG: Skipping widget {widget_count} - missing param_name or offset")
                 continue
 
             if offset < 0 or offset + length > len(data):
+                debug_logger.log(f"🔍 DEBUG: Skipping widget {widget_count} - offset {offset} + length {length} > data length {len(data)}")
                 continue
 
             raw_bytes = data[offset : offset + max(1, length)]
             if not raw_bytes:
+                debug_logger.log(f"🔍 DEBUG: Skipping widget {widget_count} - no raw bytes")
                 continue
 
             raw_value = self._decode_sysex_value(raw_bytes)
             user_value = self._convert_from_magicstomp(widget, raw_value)
+            
+            debug_logger.log(f"🔍 DEBUG: Widget {widget_count} - {param_name}: raw_bytes={raw_bytes}, raw_value={raw_value}, user_value={user_value}")
 
             # Clamp aux limites du widget si disponibles
             min_val = getattr(widget, "min_val", None)
@@ -344,8 +358,13 @@ class BaseEffectWidget(ttk.Frame):
         return applied_params
 
     def _iter_parameter_widgets(self, container: tk.Widget):
+        print(f"🔍 DEBUG: _iter_parameter_widgets - container: {container}")
+        print(f"🔍 DEBUG: _iter_parameter_widgets - children count: {len(container.winfo_children())}")
+        
         for child in container.winfo_children():
+            print(f"🔍 DEBUG: _iter_parameter_widgets - child: {child}, has param_name: {hasattr(child, 'param_name')}, has offset: {hasattr(child, 'offset')}")
             if hasattr(child, "param_name") and hasattr(child, "offset"):
+                print(f"🔍 DEBUG: _iter_parameter_widgets - found parameter widget: {child.param_name} at offset {child.offset}")
                 yield child
             if hasattr(child, "winfo_children"):
                 yield from self._iter_parameter_widgets(child)

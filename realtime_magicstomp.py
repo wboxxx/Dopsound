@@ -18,6 +18,7 @@ from typing import Dict, Any, List, Optional, Tuple
 from collections import deque
 import threading
 import queue
+from datetime import datetime
 
 from magicstomp_sysex import (
     PATCH_COMMON_LENGTH as SYSEX_PATCH_COMMON_LENGTH,
@@ -39,6 +40,13 @@ class RealtimeMagicstomp:
     SYX_FOOTER = SYSEX_FOOTER
     PARAM_SEND_CMD = PARAMETER_SEND_CMD
     BULK_RESPONSE_HEADER = [0x43, 0x7D, 0x30, 0x55, 0x42, 0x39, 0x39]
+    
+    @staticmethod
+    def _log_midi_traffic(direction: str, data: List[int], message_type: str = "SYSEX"):
+        """Log MIDI traffic in the format: [timestamp] SYSEX OUT/IN len=X data..."""
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        data_hex = ' '.join(f'{b:02X}' for b in data)
+        print(f"[{timestamp}] {message_type} {direction} len={len(data)}  {data_hex}")
 
     # Structure des patches (re-export depuis magicstomp_sysex pour compatibilité)
     PATCH_COMMON_LENGTH = SYSEX_PATCH_COMMON_LENGTH
@@ -333,12 +341,33 @@ class RealtimeMagicstomp:
             return None
 
         if self.input_port is None:
+            # Essayer d'ouvrir un port d'entrée
+            # D'abord essayer avec le même nom que le port de sortie
             try:
                 self.input_port = mido.open_input(self.midi_port_name)
                 print(f"✅ Port MIDI d'entrée ouvert: {self.midi_port_name}")
-            except Exception as exc:  # pragma: no cover - dépend du matériel
-                print(f"❌ Erreur ouverture port MIDI d'entrée: {exc}")
-                return None
+            except Exception:
+                # Si ça ne marche pas, essayer de trouver un port d'entrée correspondant
+                try:
+                    input_ports = mido.get_input_names()
+                    # Chercher un port d'entrée qui correspond au port de sortie
+                    input_port_name = None
+                    for port in input_ports:
+                        if 'ub9' in port.lower() or 'magicstomp' in port.lower():
+                            input_port_name = port
+                            break
+                    
+                    if input_port_name:
+                        self.input_port = mido.open_input(input_port_name)
+                        print(f"✅ Port MIDI d'entrée ouvert: {input_port_name}")
+                    else:
+                        print("⚠️ Aucun port MIDI d'entrée Magicstomp trouvé")
+                        # Continuer sans port d'entrée
+                        self.input_port = None
+                except Exception as exc:
+                    print(f"❌ Erreur ouverture port MIDI d'entrée: {exc}")
+                    # Continuer sans port d'entrée
+                    self.input_port = None
 
         if self.input_port:
             while self.input_port.poll() is not None:
@@ -346,6 +375,8 @@ class RealtimeMagicstomp:
 
         request = [0x43, 0x7D, 0x50, 0x55, 0x42, 0x30, 0x01, patch_index & 0x7F]
         try:
+            # Log the request message
+            self._log_midi_traffic("OUT", request, "SYSEX")
             self.output_port.send(mido.Message('sysex', data=request))
             print(f"📥 Requête de dump envoyée pour le patch {patch_index + 1:02d}")
         except Exception as exc:  # pragma: no cover - dépend du matériel
@@ -367,6 +398,9 @@ class RealtimeMagicstomp:
                 continue
 
             data = list(msg.data)
+            # Log all incoming SYSEX messages
+            self._log_midi_traffic("IN", data, "SYSEX")
+            
             if len(data) < 10 or data[:7] != self.BULK_RESPONSE_HEADER:
                 continue
 
@@ -377,8 +411,13 @@ class RealtimeMagicstomp:
                 if len(data) >= 12:
                     sub_command = data[10]
                     received_index = data[11]
+                    print(f"🔍 DEBUG: Received termination message: sub_command=0x{sub_command:02X}, index={received_index}")
+                    # Ne s'arrêter que si on a reçu toutes les données ET que c'est le bon message de fin
                     if sub_command == 0x11 and common_data and effect_data:
+                        print(f"🔍 DEBUG: Patch download complete - common_data: {len(common_data)} bytes, effect_data: {len(effect_data)} bytes")
                         break
+                    elif sub_command == 0x01:
+                        print(f"🔍 DEBUG: Received start message, continuing...")
                 continue
 
             if command != 0x20 or len(data) < 13:
@@ -391,12 +430,24 @@ class RealtimeMagicstomp:
             if section == 0x00 and section_offset == 0x00 and length >= self.PATCH_COMMON_LENGTH:
                 common_data = payload[: self.PATCH_COMMON_LENGTH]
                 print(f"📦 Données 'common' reçues ({len(common_data)} octets)")
+                print(f"🔍 DEBUG: Common data: {common_data[:10]}... (first 10 bytes)")
+                if len(common_data) > 1:
+                    # L'ID de l'effet est à l'octet 1 dans la structure SYSEX du Magicstomp (comme MagicstompFrenzy)
+                    effect_type = common_data[1]
+                    print(f"🔍 DEBUG: Effect type in common (offset 1): 0x{effect_type:02X} ({effect_type})")
+                    # Extraire le nom du patch (octets 16-27)
+                    if len(common_data) > 27:
+                        patch_name_bytes = common_data[16:28]
+                        patch_name = ''.join(chr(b) for b in patch_name_bytes if b != 0)
+                        print(f"🔍 DEBUG: Patch name: '{patch_name}'")
             elif section == 0x01 and section_offset == 0x00 and length >= self.PATCH_EFFECT_LENGTH:
                 effect_data = payload[: self.PATCH_EFFECT_LENGTH]
                 print(f"🎛️ Données d'effet reçues ({len(effect_data)} octets)")
+                print(f"🔍 DEBUG: Effect data: {effect_data[:20]}... (first 20 bytes)")
 
-            if common_data and effect_data:
-                break
+            # Ne pas s'arrêter ici - attendre le message de terminaison
+            # if common_data and effect_data:
+            #     break
 
         if not common_data or not effect_data:
             print("❌ Patch incomplet reçu depuis le Magicstomp")
@@ -411,6 +462,8 @@ class RealtimeMagicstomp:
     def _send_message_immediate(self, message: List[int]):
         """Envoie un message immédiatement."""
         try:
+            # Log the complete SYSEX message
+            self._log_midi_traffic("OUT", message, "SYSEX")
             self.output_port.send(mido.Message('sysex', data=message[1:-1]))  # Exclut F0 et F7
             print(f"📤 Paramètre envoyé: {message[8:10]} = {message[10]}")
         except Exception as e:

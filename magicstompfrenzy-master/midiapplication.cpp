@@ -45,6 +45,59 @@
 #include "midiportmodel.h"
 
 #include <QtDebug>
+#include <QDateTime>
+#include <QTextStream>
+#include <QFile>
+
+// Universal SysEx logging function for all platforms
+void MidiApplication::logSysExMessage(const QByteArray &data, const QString &paramName, int offset, int length)
+{
+    if (data.isEmpty())
+        return;
+        
+    // Get current timestamp
+    QString timestamp = QDateTime::currentDateTime().toString("[yyyy-MM-dd hh:mm:ss]");
+    
+    // Format hex bytes with space separation
+    QString hexString;
+    QTextStream stream(&hexString);
+    for (int i = 0; i < data.size(); ++i) {
+        stream << QString("%1").arg(static_cast<unsigned char>(data[i]), 2, 16, QChar('0')).toUpper();
+        if (i < data.size() - 1) {
+            stream << " ";
+        }
+    }
+    
+    // Output to both console and file for debugging
+    QString logMessage = timestamp + " SYSEX OUT len=" + QString::number(data.size());
+    
+    // Add parameter information if available
+    if (!paramName.isEmpty()) {
+        logMessage += " | PARAM: " + paramName;
+        if (offset >= 0) {
+            logMessage += " (offset=" + QString::number(offset);
+            if (length > 0) {
+                logMessage += ", len=" + QString::number(length);
+            }
+            logMessage += ")";
+        }
+    }
+    
+    logMessage += "  " + hexString + "\n";
+    
+    // Write to console
+    QTextStream(stdout) << logMessage;
+    QTextStream(stdout).flush();
+    
+    // Write to file
+    QFile logFile("sysex_debug.log");
+    if (logFile.open(QIODevice::WriteOnly | QIODevice::Append)) {
+        QTextStream fileStream(&logFile);
+        fileStream << logMessage;
+        fileStream.flush();
+        logFile.close();
+    }
+}
 
 #ifdef Q_OS_MAC
 void MidiApplication::MIDIEngineNotifyProc(const MIDINotification *message, void *refCon)
@@ -240,6 +293,10 @@ MidiApplication::MidiApplication(int &argc, char **argv)
 
     connect(this, SIGNAL(aboutToQuit()), this, SLOT(isQuitting()));
 
+    // Initialize SysEx sniffer
+    QTextStream(stdout) << "=== MagicstompFrenzy SysEx Sniffer Started ===\n";
+    QTextStream(stdout).flush();
+
 #if 0
     if(argc > 2)
     {
@@ -337,6 +394,9 @@ bool MidiApplication::sendMidiEvent(MidiEvent *ev)
 #ifdef Q_OS_MACOS
     if( ev->type() == static_cast< QEvent::Type>( UserEventTypes::MidiSysEx))
     {
+        // Log SysEx message before sending
+        logSysExMessage(*ev->sysExData());
+        
         ConnectionsContainer::const_iterator iter = writablePortsModel->currentConnections().constBegin();
         while (iter != writablePortsModel->currentConnections().constEnd())
         {
@@ -356,6 +416,9 @@ bool MidiApplication::sendMidiEvent(MidiEvent *ev)
 #ifdef Q_OS_WIN
     if( ev->type() == static_cast< QEvent::Type>( UserEventTypes::MidiSysEx))
     {
+        // Log SysEx message before sending
+        logSysExMessage(*ev->sysExData());
+        
         ConnectionsContainer::const_iterator iter = writablePortsModel->currentConnections().constBegin();
         while (iter != writablePortsModel->currentConnections().constEnd())
         {

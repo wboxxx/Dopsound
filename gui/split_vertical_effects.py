@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 import re
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -20,7 +21,8 @@ class SplitVerticalGUIEffectsMixin:
     def clear_effect_widgets(self):
         """Clear all existing effect widgets from the cascade."""
         try:
-            print("🔍 DEBUG: Clearing existing effect widgets")
+            from debug_logger import debug_logger
+debug_logger.log(f"🔍 DEBUG: Clearing existing effect widgets")
             
             # Clear the cascade list
             if hasattr(self, 'effect_widget_cascade'):
@@ -43,14 +45,14 @@ class SplitVerticalGUIEffectsMixin:
                 for i in reversed(tabs_to_remove):
                     try:
                         self.notebook.forget(i)
-                        print(f"🔍 DEBUG: Removed effect tab: {i}")
+debug_logger.log(f"🔍 DEBUG: Removed effect tab: {i}")
                     except Exception as e:
-                        print(f"🔍 DEBUG: Error removing tab {i}: {e}")
+debug_logger.log(f"🔍 DEBUG: Error removing tab {i}: {e}")
             
-            print("🔍 DEBUG: Effect widgets cleared successfully")
+debug_logger.log(f"🔍 DEBUG: Effect widgets cleared successfully")
             
         except Exception as e:
-            print(f"🔍 DEBUG: Error clearing effect widgets: {e}")
+debug_logger.log(f"🔍 DEBUG: Error clearing effect widgets: {e}")
             import traceback
             traceback.print_exc()
 
@@ -58,15 +60,15 @@ class SplitVerticalGUIEffectsMixin:
         """Apply current patch parameters to all loaded effect widgets."""
         try:
             if not self.current_patch or not self.effect_widget_cascade:
-                print("🔍 DEBUG: No patch or widgets to apply parameters to")
+debug_logger.log(f"🔍 DEBUG: No patch or widgets to apply parameters to")
                 return
             
-            print("🔍 DEBUG: Applying patch parameters to widgets")
+debug_logger.log(f"🔍 DEBUG: Applying patch parameters to widgets")
             self.log_status("🔄 Applying patch parameters to widgets...")
             
             # Convert patch parameters to widget parameters
             widget_params = self.convert_patch_to_widget_params(self.current_patch)
-            print(f"🔍 DEBUG: Converted widget params: {widget_params}")
+debug_logger.log(f"🔍 DEBUG: Converted widget params: {widget_params}")
             
             if widget_params:
                 # Apply parameters to all widgets in the cascade
@@ -74,17 +76,55 @@ class SplitVerticalGUIEffectsMixin:
                     if hasattr(widget, 'set_all_parameters'):
                         try:
                             widget.set_all_parameters(widget_params)
-                            print(f"🔍 DEBUG: Applied parameters to widget: {widget}")
+debug_logger.log(f"🔍 DEBUG: Applied parameters to widget: {widget}")
                         except Exception as e:
-                            print(f"🔍 DEBUG: Error applying parameters to widget: {e}")
+debug_logger.log(f"🔍 DEBUG: Error applying parameters to widget: {e}")
                 
                 self.log_status("✅ Patch parameters applied to widgets")
-                print("🔍 DEBUG: Patch parameters applied successfully")
+debug_logger.log(f"🔍 DEBUG: Patch parameters applied successfully")
             else:
-                print("🔍 DEBUG: No widget parameters to apply")
+debug_logger.log(f"🔍 DEBUG: No widget parameters to apply")
                 
         except Exception as e:
-            print(f"🔍 DEBUG: Error applying patch parameters to widgets: {e}")
+debug_logger.log(f"🔍 DEBUG: Error applying patch parameters to widgets: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def apply_sysex_data_to_widgets(self, sysex_data):
+        """Apply SYSEX data directly to effect widgets."""
+        try:
+            if not sysex_data or not self.effect_widget_cascade:
+debug_logger.log(f"🔍 DEBUG: No SYSEX data or widgets to apply to")
+                return
+            
+debug_logger.log(f"🔍 DEBUG: Applying SYSEX data to widgets")
+            self.log_status("🔄 Applying SYSEX data to widgets...")
+            
+            # Extract common and effect data
+            common_data = sysex_data.get('common', [])
+            effect_data = sysex_data.get('effect', [])
+            
+debug_logger.log(f"🔍 DEBUG: Common data: {len(common_data)} bytes")
+debug_logger.log(f"🔍 DEBUG: Effect data: {len(effect_data)} bytes")
+            
+            # Apply to all widgets in the cascade
+            for widget in self.effect_widget_cascade:
+                if hasattr(widget, 'apply_magicstomp_data'):
+                    try:
+                        # Apply effect data to the widget
+                        applied_params = widget.apply_magicstomp_data(effect_data)
+debug_logger.log(f"🔍 DEBUG: Applied SYSEX data to widget: {widget}")
+debug_logger.log(f"🔍 DEBUG: Applied parameters: {applied_params}")
+                    except Exception as e:
+debug_logger.log(f"🔍 DEBUG: Error applying SYSEX data to widget: {e}")
+                        import traceback
+                        traceback.print_exc()
+            
+            self.log_status("✅ SYSEX data applied to widgets")
+debug_logger.log(f"🔍 DEBUG: SYSEX data applied successfully")
+                
+        except Exception as e:
+debug_logger.log(f"🔍 DEBUG: Error applying SYSEX data to widgets: {e}")
             import traceback
             traceback.print_exc()
 
@@ -173,7 +213,7 @@ class SplitVerticalGUIEffectsMixin:
     def load_official_effect_catalog(self):
         """Load official Magicstomp effect names from the CSV reference."""
         catalog_path = Path(__file__).parent.parent / "magicstomp_Effects+List.csv"
-        print(f"🔍 DEBUG: Loading official effect catalog from {catalog_path}")
+debug_logger.log(f"🔍 DEBUG: Loading official effect catalog from {catalog_path}")
 
         self.official_effect_names = set()
         self.official_effect_lookup = {}
@@ -202,13 +242,13 @@ class SplitVerticalGUIEffectsMixin:
                         self.official_effect_names.add(raw_name)
                         self.official_effect_lookup[normalized] = raw_name
 
-                print(f"🔍 DEBUG: Loaded {len(self.official_effect_names)} official effect names")
+debug_logger.log(f"🔍 DEBUG: Loaded {len(self.official_effect_names)} official effect names")
             except Exception as exc:
-                print(f"🔍 DEBUG: Failed to load official effect catalog: {exc}")
+debug_logger.log(f"🔍 DEBUG: Failed to load official effect catalog: {exc}")
                 self.official_effect_names = set()
                 self.official_effect_lookup = {}
         else:
-            print("🔍 DEBUG: Official effect catalog not found; falling back to registry names only")
+debug_logger.log(f"🔍 DEBUG: Official effect catalog not found; falling back to registry names only")
 
         # Build supported effect lookup from EffectRegistry
         supported_effects = EffectRegistry.get_supported_effects()
@@ -248,7 +288,7 @@ class SplitVerticalGUIEffectsMixin:
                     self.canonical_to_official_name[canonical_name] = official_name
 
         self.effect_metadata_loaded = True
-        print(f"🔍 DEBUG: Supported effects (widgets): {len(self.supported_effect_name_to_type)}")
+debug_logger.log(f"🔍 DEBUG: Supported effects (widgets): {len(self.supported_effect_name_to_type)}")
 
     def get_canonical_effect_name(self, effect_name):
         """Return the canonical registry name for an effect if supported."""
@@ -293,7 +333,7 @@ class SplitVerticalGUIEffectsMixin:
         """Map patch sections to official Magicstomp effect names."""
 
         if not isinstance(section_data, dict):
-            print(f"🔍 DEBUG: Section {section_name} ignored (not a mapping)")
+debug_logger.log(f"🔍 DEBUG: Section {section_name} ignored (not a mapping)")
             return None
 
         section_key = section_name.lower()
@@ -301,7 +341,7 @@ class SplitVerticalGUIEffectsMixin:
             return None
 
         if not self.is_section_enabled(section_data):
-            print(f"🔍 DEBUG: Section {section_name} disabled or bypassed")
+debug_logger.log(f"🔍 DEBUG: Section {section_name} disabled or bypassed")
             return None
 
         direct_mapping = {
@@ -362,7 +402,7 @@ class SplitVerticalGUIEffectsMixin:
                     f"(official={match.is_official}, supported={match.is_supported})"
                 )
             else:
-                print(f"🔍 DEBUG: Direct mapping failed for section {section_name}")
+debug_logger.log(f"🔍 DEBUG: Direct mapping failed for section {section_name}")
             return match
 
         match: Optional[EffectMatch] = None
@@ -386,7 +426,7 @@ class SplitVerticalGUIEffectsMixin:
                 f"(official={match.is_official}, supported={match.is_supported})"
             )
         else:
-            print(f"🔍 DEBUG: No mapping found for section: {section_name}")
+debug_logger.log(f"🔍 DEBUG: No mapping found for section: {section_name}")
         return match
 
     def infer_delay_effect(self, section_name: str, section_data: Dict) -> Optional[EffectMatch]:
@@ -560,8 +600,8 @@ class SplitVerticalGUIEffectsMixin:
     def identify_effects_from_patch(self, patch):
         """Identify effects from patch data."""
 
-        print("🔍 DEBUG: Starting identify_effects_from_patch()")
-        print(f"🔍 DEBUG: Analyzing patch: {patch}")
+debug_logger.log(f"🔍 DEBUG: Starting identify_effects_from_patch()")
+debug_logger.log(f"🔍 DEBUG: Analyzing patch: {patch}")
 
         report: Dict[str, List[EffectMatch]] = {
             'official': [],
@@ -574,7 +614,7 @@ class SplitVerticalGUIEffectsMixin:
         try:
             for section_name, section_data in patch.items():
                 if isinstance(section_data, dict) and section_name != 'meta':
-                    print(f"🔍 DEBUG: Analyzing section: {section_name}")
+debug_logger.log(f"🔍 DEBUG: Analyzing section: {section_name}")
 
                     match = self.map_section_to_effect(section_name, section_data)
                     if not match:
@@ -613,12 +653,12 @@ class SplitVerticalGUIEffectsMixin:
                         )
 
             summary = {key: [m.display_name for m in value] for key, value in report.items()}
-            print(f"🔍 DEBUG: Identification report: {summary}")
+debug_logger.log(f"🔍 DEBUG: Identification report: {summary}")
             self.last_identified_effects = report
             return report
 
         except Exception as e:
-            print(f"🔍 DEBUG: Error identifying effects: {e}")
+debug_logger.log(f"🔍 DEBUG: Error identifying effects: {e}")
             self.last_identified_effects = {
                 'official': [],
                 'unsupported': [],
@@ -630,10 +670,10 @@ class SplitVerticalGUIEffectsMixin:
     def add_effect_to_cascade(self, effect_match: EffectMatch):
         """Add an effect widget to the cascade without replacing existing ones."""
 
-        print(f"🔍 DEBUG: Starting add_effect_to_cascade: {effect_match}")
+debug_logger.log(f"🔍 DEBUG: Starting add_effect_to_cascade: {effect_match}")
 
         if not isinstance(effect_match, EffectMatch):
-            print("🔍 DEBUG: Invalid effect match provided to add_effect_to_cascade")
+debug_logger.log(f"🔍 DEBUG: Invalid effect match provided to add_effect_to_cascade")
             return False, "Invalid effect description"
 
         try:
@@ -641,7 +681,7 @@ class SplitVerticalGUIEffectsMixin:
 
             if not effect_match.should_attempt_load():
                 reason = effect_match.describe_failure() or "Unsupported effect"
-                print(f"🔍 DEBUG: Cannot load effect {display_name}: {reason}")
+debug_logger.log(f"🔍 DEBUG: Cannot load effect {display_name}: {reason}")
                 return False, reason
 
             effect_type = effect_match.effect_type
@@ -650,24 +690,24 @@ class SplitVerticalGUIEffectsMixin:
 
             if effect_type is None:
                 reason = effect_match.describe_failure() or "No widget available"
-                print(f"🔍 DEBUG: No widget available for {display_name}")
+debug_logger.log(f"🔍 DEBUG: No widget available for {display_name}")
                 return False, reason
 
-            print(f"🔍 DEBUG: Loading widget for type {effect_type} ({display_name})")
+debug_logger.log(f"🔍 DEBUG: Loading widget for type {effect_type} ({display_name})")
             effect_widget = self.load_effect_widget_by_type(effect_type)
 
             if effect_widget:
-                print(f"🔍 DEBUG: Successfully added {display_name} to cascade")
+debug_logger.log(f"🔍 DEBUG: Successfully added {display_name} to cascade")
                 self.current_effect_widget = effect_widget
                 self.current_effect_type = effect_type
                 return True, display_name
 
             reason = f"Widget load failed for {display_name}"
-            print(f"🔍 DEBUG: Failed to add {display_name} to cascade")
+debug_logger.log(f"🔍 DEBUG: Failed to add {display_name} to cascade")
             return False, reason
 
         except Exception as e:
-            print(f"🔍 DEBUG: Error adding effect to cascade: {e}")
+debug_logger.log(f"🔍 DEBUG: Error adding effect to cascade: {e}")
             return False, str(e)
     
     def get_last_effect_widget(self):
@@ -678,7 +718,7 @@ class SplitVerticalGUIEffectsMixin:
     
     def load_effect_by_name(self, effect_name):
         """Load an effect by name."""
-        print(f"🔍 DEBUG: Starting load_effect_by_name: {effect_name}")
+debug_logger.log(f"🔍 DEBUG: Starting load_effect_by_name: {effect_name}")
         
         try:
             # Map effect names to real Magicstomp effect types (from effect_registry.py)
@@ -705,124 +745,124 @@ class SplitVerticalGUIEffectsMixin:
             
             if effect_name in effect_type_mapping:
                 effect_type = effect_type_mapping[effect_name]
-                print(f"🔍 DEBUG: Effect type for {effect_name}: {effect_type}")
+debug_logger.log(f"🔍 DEBUG: Effect type for {effect_name}: {effect_type}")
                 
                 # Load the effect widget
                 success = self.load_effect_widget_by_type(effect_type)
                 if success:
-                    print(f"🔍 DEBUG: Successfully loaded effect widget for {effect_name}")
+debug_logger.log(f"🔍 DEBUG: Successfully loaded effect widget for {effect_name}")
                     return True
                 else:
-                    print(f"🔍 DEBUG: Failed to load effect widget for {effect_name}")
+debug_logger.log(f"🔍 DEBUG: Failed to load effect widget for {effect_name}")
                     return False
             elif effect_name == 'Compressor':
                 # Use real Compressor widget
-                print(f"🔍 DEBUG: Loading real Compressor widget")
+debug_logger.log(f"🔍 DEBUG: Loading real Compressor widget")
                 effect_type = 0x36  # CompressorWidget
                 success = self.load_effect_widget_by_type(effect_type)
                 if success:
-                    print(f"🔍 DEBUG: Successfully loaded Compressor widget")
+debug_logger.log(f"🔍 DEBUG: Successfully loaded Compressor widget")
                     return True
                 else:
-                    print(f"🔍 DEBUG: Failed to load Compressor widget")
+debug_logger.log(f"🔍 DEBUG: Failed to load Compressor widget")
                     return False
             else:
-                print(f"🔍 DEBUG: Unknown effect name: {effect_name}")
+debug_logger.log(f"🔍 DEBUG: Unknown effect name: {effect_name}")
                 return False
                 
         except Exception as e:
-            print(f"🔍 DEBUG: Error loading effect by name: {e}")
+debug_logger.log(f"🔍 DEBUG: Error loading effect by name: {e}")
             import traceback
             traceback.print_exc()
             return False
     
     def load_effect_widget_by_type(self, effect_type):
         """Load effect widget by type number."""
-        print(f"🔍 DEBUG: Starting load_effect_widget_by_type: {effect_type}")
+debug_logger.log(f"🔍 DEBUG: Starting load_effect_widget_by_type: {effect_type}")
         
         try:
             # Get effect widget from registry (using static class)
-            print(f"🔍 DEBUG: Using EffectRegistry static class")
+debug_logger.log(f"🔍 DEBUG: Using EffectRegistry static class")
             effect_class = EffectRegistry.create_effect_widget(effect_type, None)
-            print(f"🔍 DEBUG: Effect class for type {effect_type}: {effect_class}")
+debug_logger.log(f"🔍 DEBUG: Effect class for type {effect_type}: {effect_class}")
             
             if effect_class:
                 # Create and load the effect widget
-                print(f"🔍 DEBUG: Creating effect widget with parent: {self.params_scrollable_frame}")
+debug_logger.log(f"🔍 DEBUG: Creating effect widget with parent: {self.params_scrollable_frame}")
                 effect_widget = EffectRegistry.create_effect_widget(effect_type, self.params_scrollable_frame)
                 self.current_effect_type = effect_type
                 
                 # Debug widget properties
-                print(f"🔍 DEBUG: Widget created: {effect_widget}")
-                print(f"🔍 DEBUG: Widget type: {type(effect_widget)}")
+debug_logger.log(f"🔍 DEBUG: Widget created: {effect_widget}")
+debug_logger.log(f"🔍 DEBUG: Widget type: {type(effect_widget)}")
                 
                 # Pack the widget in the scrollable frame
-                print(f"🔍 DEBUG: Packing widget in scrollable frame")
+debug_logger.log(f"🔍 DEBUG: Packing widget in scrollable frame")
                 effect_widget.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-                print(f"🔍 DEBUG: Widget packed successfully")
+debug_logger.log(f"🔍 DEBUG: Widget packed successfully")
                 
                 # Force widget to update and show
-                print(f"🔍 DEBUG: Forcing widget update")
+debug_logger.log(f"🔍 DEBUG: Forcing widget update")
                 effect_widget.update_idletasks()
                 effect_widget.update()
-                print(f"🔍 DEBUG: Widget update completed")
+debug_logger.log(f"🔍 DEBUG: Widget update completed")
                 
                 # Force grid layout update
-                print(f"🔍 DEBUG: Forcing grid layout update")
+debug_logger.log(f"🔍 DEBUG: Forcing grid layout update")
                 effect_widget.grid_rowconfigure(0, weight=1)
                 effect_widget.grid_columnconfigure(0, weight=1)
                 effect_widget.grid_propagate(True)
-                print(f"🔍 DEBUG: Grid layout update completed")
-                print(f"🔍 DEBUG: Widget methods: {dir(effect_widget)}")
+debug_logger.log(f"🔍 DEBUG: Grid layout update completed")
+debug_logger.log(f"🔍 DEBUG: Widget methods: {dir(effect_widget)}")
                 
                 # Check if widget has required methods
                 if hasattr(effect_widget, 'set_all_parameters'):
-                    print(f"🔍 DEBUG: Widget has set_all_parameters method")
+debug_logger.log(f"🔍 DEBUG: Widget has set_all_parameters method")
                 else:
-                    print(f"🔍 DEBUG: Widget MISSING set_all_parameters method")
+debug_logger.log(f"🔍 DEBUG: Widget MISSING set_all_parameters method")
                 
                 if hasattr(effect_widget, 'get_all_parameters'):
-                    print(f"🔍 DEBUG: Widget has get_all_parameters method")
+debug_logger.log(f"🔍 DEBUG: Widget has get_all_parameters method")
                 else:
-                    print(f"🔍 DEBUG: Widget MISSING get_all_parameters method")
+debug_logger.log(f"🔍 DEBUG: Widget MISSING get_all_parameters method")
                 
                 # Update UI
                 if hasattr(self, 'current_effect_var'):
                     effect_name = EffectRegistry.get_effect_name(effect_type)
                     display_name = self.get_display_name_for_effect(effect_name)
                     self.current_effect_var.set(f"Loaded: {display_name}")
-                    print(f"🔍 DEBUG: Updated current_effect_var to: Loaded: {display_name}")
+debug_logger.log(f"🔍 DEBUG: Updated current_effect_var to: Loaded: {display_name}")
                 else:
-                    print(f"🔍 DEBUG: No current_effect_var found")
+debug_logger.log(f"🔍 DEBUG: No current_effect_var found")
                 
                 # Check patch builder frame
-                print(f"🔍 DEBUG: Patch builder frame: {self.patch_builder_frame}")
-                print(f"🔍 DEBUG: Params scrollable frame: {self.params_scrollable_frame}")
-                print(f"🔍 DEBUG: Params scrollable frame children: {self.params_scrollable_frame.winfo_children()}")
+debug_logger.log(f"🔍 DEBUG: Patch builder frame: {self.patch_builder_frame}")
+debug_logger.log(f"🔍 DEBUG: Params scrollable frame: {self.params_scrollable_frame}")
+debug_logger.log(f"🔍 DEBUG: Params scrollable frame children: {self.params_scrollable_frame.winfo_children()}")
                 
                 # Check if widget is visible
                 if effect_widget:
-                    print(f"🔍 DEBUG: Widget visible: {effect_widget.winfo_viewable()}")
-                    print(f"🔍 DEBUG: Widget mapped: {effect_widget.winfo_ismapped()}")
-                    print(f"🔍 DEBUG: Widget geometry: {effect_widget.winfo_geometry()}")
-                    print(f"🔍 DEBUG: Widget size: {effect_widget.winfo_reqwidth()}x{effect_widget.winfo_reqheight()}")
-                    print(f"🔍 DEBUG: Widget children: {effect_widget.winfo_children()}")
-                    print(f"🔍 DEBUG: Widget children count: {len(effect_widget.winfo_children())}")
+debug_logger.log(f"🔍 DEBUG: Widget visible: {effect_widget.winfo_viewable()}")
+debug_logger.log(f"🔍 DEBUG: Widget mapped: {effect_widget.winfo_ismapped()}")
+debug_logger.log(f"🔍 DEBUG: Widget geometry: {effect_widget.winfo_geometry()}")
+debug_logger.log(f"🔍 DEBUG: Widget size: {effect_widget.winfo_reqwidth()}x{effect_widget.winfo_reqheight()}")
+debug_logger.log(f"🔍 DEBUG: Widget children: {effect_widget.winfo_children()}")
+debug_logger.log(f"🔍 DEBUG: Widget children count: {len(effect_widget.winfo_children())}")
                 
                 # Add widget to cascade
                 self.effect_widget_cascade.append(effect_widget)
-                print(f"🔍 DEBUG: Added widget to cascade. Cascade size: {len(self.effect_widget_cascade)}")
+debug_logger.log(f"🔍 DEBUG: Added widget to cascade. Cascade size: {len(self.effect_widget_cascade)}")
                 
-                print(f"🔍 DEBUG: Successfully loaded effect widget type {effect_type}")
-                print(f"🔍 DEBUG: Created effect widget: {effect_widget}")
+debug_logger.log(f"🔍 DEBUG: Successfully loaded effect widget type {effect_type}")
+debug_logger.log(f"🔍 DEBUG: Created effect widget: {effect_widget}")
                 return effect_widget
             else:
-                print(f"🔍 DEBUG: Effect class not found for type {effect_type}")
-                print(f"🔍 DEBUG: Available effects in registry: {list(EffectRegistry.EFFECT_WIDGETS.keys())}")
+debug_logger.log(f"🔍 DEBUG: Effect class not found for type {effect_type}")
+debug_logger.log(f"🔍 DEBUG: Available effects in registry: {list(EffectRegistry.EFFECT_WIDGETS.keys())}")
                 return False
                 
         except Exception as e:
-            print(f"🔍 DEBUG: Error loading effect widget by type: {e}")
+debug_logger.log(f"🔍 DEBUG: Error loading effect widget by type: {e}")
             import traceback
             traceback.print_exc()
             return False

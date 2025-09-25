@@ -16239,7 +16239,10 @@ release/mainwindow.o: mainwindow.cpp mainwindow.h \
 		C:/Qt/6.9.2/mingw_64/include/QtWidgets/qfiledialog.h \
 		C:/Qt/6.9.2/mingw_64/include/QtCore/QDebug \
 		C:/Qt/6.9.2/mingw_64/include/QtCore/QDateTime \
-		C:/Qt/6.9.2/mingw_64/include/QtCore/QTextStream
+		C:/Qt/6.9.2/mingw_64/include/QtCore/QTextStream \
+		C:/Qt/6.9.2/mingw_64/include/QtWidgets/QSlider \
+		C:/Qt/6.9.2/mingw_64/include/QtWidgets/QComboBox \
+		C:/Qt/6.9.2/mingw_64/include/QtWidgets/qcombobox.h
 	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o release/mainwindow.o mainwindow.cpp
 
 release/midiportmodel.o: midiportmodel.cpp midiportmodel.h \
@@ -17838,7 +17841,14 @@ release/midiapplication.o: midiapplication.cpp midiapplication.h \
 		midiportmodel.h \
 		C:/Qt/6.9.2/mingw_64/include/QtCore/QAbstractItemModel \
 		C:/Qt/6.9.2/mingw_64/include/QtCore/qabstractitemmodel.h \
-		C:/Qt/6.9.2/mingw_64/include/QtCore/QtDebug
+		C:/Qt/6.9.2/mingw_64/include/QtCore/QtDebug \
+		C:/Qt/6.9.2/mingw_64/include/QtCore/QDateTime \
+		C:/Qt/6.9.2/mingw_64/include/QtCore/qdatetime.h \
+		C:/Qt/6.9.2/mingw_64/include/QtCore/qcalendar.h \
+		C:/Qt/6.9.2/mingw_64/include/QtCore/QTextStream \
+		C:/Qt/6.9.2/mingw_64/include/QtCore/QFile \
+		C:/Qt/6.9.2/mingw_64/include/QtCore/qfile.h \
+		C:/Qt/6.9.2/mingw_64/include/QtCore/qfiledevice.h
 	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o release/midiapplication.o midiapplication.cpp
 
 release/ampmultiwidget.o: effecteditwidgets/ampmultiwidget.cpp effecteditwidgets/ampmultiwidget.h \

@@ -123,3 +123,24 @@ class SplitVerticalGUI(
         self.init_hil_system()
         self.init_midi_connection()
     
+    def run(self):
+        """Start the GUI main loop."""
+        self.root.mainloop()
+    
+    def on_closing(self):
+        """Handle window closing."""
+        if self.audio_stream:
+            self.audio_stream.stop()
+        if self.live_di_stream:
+            self.live_di_stream.stop()
+        self.root.destroy()
+
+
+def main():
+    """Main function."""
+    app = SplitVerticalGUI()
+    app.run()
+
+
+if __name__ == "__main__":
+    main()

@@ -116,6 +116,8 @@ class SplitVerticalGUIAnalysisMixin:
     
     def download_current_patch(self):
         """Download current patch from Magicstomp and display it."""
+        from debug_logger import debug_logger
+        debug_logger.log("🔍 DEBUG: download_current_patch called")
         
         if self.realtime_magicstomp is None:
             try:
@@ -124,6 +126,11 @@ class SplitVerticalGUIAnalysisMixin:
                 self.log_status(f"❌ MIDI init error: {exc}")
                 messagebox.showerror("Magicstomp", f"Failed to initialize MIDI connection:\n{exc}")
                 return
+
+        # Clear existing effect widgets before loading new patch
+        if hasattr(self, 'effects_panel') and self.effects_panel:
+            debug_logger.log("🔍 DEBUG: Clearing existing effect widgets before download")
+            self.effects_panel.clear_effect_widgets()
 
         self.log_status("📥 Requesting current patch from Magicstomp...")
         patch_data = self.realtime_magicstomp.request_patch()
@@ -140,11 +147,18 @@ class SplitVerticalGUIAnalysisMixin:
             messagebox.showerror("Magicstomp", "Invalid patch data received from Magicstomp.")
             return
 
-        effect_type = common_section[0]
+        # L'ID de l'effet est à l'octet 1 dans la structure SYSEX du Magicstomp (comme MagicstompFrenzy)
+        effect_type = common_section[1] if len(common_section) > 1 else common_section[0]
         effect_name = EffectRegistry.get_effect_name(effect_type)
+        
+        # Debug: Afficher les informations sur l'effet détecté
+debug_logger.log(f"🔍 DEBUG: Effect type detected: 0x{effect_type:02X} ({effect_type})")
+debug_logger.log(f"🔍 DEBUG: Effect name: {effect_name}")
+        self.log_status(f"🎛️ Effect detected: {effect_name} (0x{effect_type:02X})")
 
         if not EffectRegistry.is_effect_supported(effect_type):
             self.log_status(f"⚠️ Effect {effect_name} not supported in editor")
+debug_logger.log(f"🔍 DEBUG: Effect {effect_name} not supported in editor")
             messagebox.showwarning("Magicstomp", f"Effect {effect_name} (0x{effect_type:02X}) is not supported in the editor.")
             return
 
@@ -160,11 +174,54 @@ class SplitVerticalGUIAnalysisMixin:
             self.log_status(f"❌ Effect widget for {effect_name} not available")
             messagebox.showerror("Magicstomp", f"Unable to load widget for effect {effect_name}.")
             return
+        
+        # Store the main widget before cascade creation changes current_effect_widget
+        main_effect_widget = self.current_effect_widget
+        debug_logger.log(f"🔍 DEBUG: Main effect widget stored: {main_effect_widget}")
+        debug_logger.log(f"🔍 DEBUG: Main effect widget type: {type(main_effect_widget)}")
 
-        # Apply parameters from Magicstomp data
+        # Apply parameters from Magicstomp data to main widget
         applied_params = {}
-        if hasattr(self.current_effect_widget, 'apply_magicstomp_data'):
-            applied_params = self.current_effect_widget.apply_magicstomp_data(effect_section)
+        debug_logger.log(f"🔍 DEBUG: About to apply Magicstomp data to main effect widget...")
+        debug_logger.log(f"🔍 DEBUG: Main effect widget: {main_effect_widget}")
+        debug_logger.log(f"🔍 DEBUG: Main effect widget type: {type(main_effect_widget)}")
+        debug_logger.log(f"🔍 DEBUG: Has apply_magicstomp_data: {hasattr(main_effect_widget, 'apply_magicstomp_data')}")
+        
+        if hasattr(main_effect_widget, 'apply_magicstomp_data'):
+            debug_logger.log(f"🔍 DEBUG: Applying Magicstomp data to main effect widget...")
+            debug_logger.log_sysex_data(effect_section, "Effect section data")
+            applied_params = main_effect_widget.apply_magicstomp_data(effect_section)
+            debug_logger.log(f"🔍 DEBUG: Applied parameters to main widget: {applied_params}")
+            self.log_status(f"📊 Parameters applied to main widget: {len(applied_params)} parameters")
+        else:
+            debug_logger.log(f"🔍 DEBUG: Main effect widget doesn't support apply_magicstomp_data")
+            self.log_status("⚠️ Main effect widget doesn't support parameter application")
+        
+        # Apply parameters to all widgets in the cascade
+        if hasattr(self, 'effect_widget_cascade') and self.effect_widget_cascade:
+            debug_logger.log(f"🔍 DEBUG: Applying Magicstomp data to all {len(self.effect_widget_cascade)} widgets in cascade...")
+            total_applied = 0
+            for i, widget in enumerate(self.effect_widget_cascade):
+                if hasattr(widget, 'apply_magicstomp_data'):
+                    try:
+                        widget_applied = widget.apply_magicstomp_data(effect_section)
+                        widget_name = widget.__class__.__name__
+                        debug_logger.log(f"🔍 DEBUG: Applied {len(widget_applied)} parameters to {widget_name} widget")
+                        total_applied += len(widget_applied)
+                    except Exception as e:
+                        debug_logger.log(f"🔍 DEBUG: Error applying data to widget {i}: {e}")
+                else:
+                    debug_logger.log(f"🔍 DEBUG: Widget {i} doesn't support apply_magicstomp_data")
+            
+            if total_applied > 0:
+                self.log_status(f"📊 Total parameters applied to cascade: {total_applied} parameters")
+            else:
+                self.log_status("⚠️ No parameters applied to cascade widgets")
+        
+        # For composite effects like "Distortion Multi (Flange)", create additional widgets
+        if effect_type == 0x3C:  # Distortion Multi (Flange)
+debug_logger.log(f"🔍 DEBUG: Detected composite effect - creating additional widgets")
+            self._create_composite_effect_widgets(effect_section)
 
         # Pack the widget
         self.current_effect_widget.pack(fill=tk.X, padx=5, pady=5)
@@ -240,7 +297,7 @@ class SplitVerticalGUIAnalysisMixin:
                     self.effect_combo.set(item)
                     break
         except Exception as e:
-            print(f"🔍 DEBUG: Error selecting effect in combo: {e}")
+debug_logger.log(f"🔍 DEBUG: Error selecting effect in combo: {e}")
     
     def find_sysex_offset(self, param_name: str, effect_type: str) -> int:
         """Find Sysex offset for a parameter based on effect type and parameter name."""
@@ -494,39 +551,39 @@ class SplitVerticalGUIAnalysisMixin:
         """Analyze target audio file using AutoToneMatcher."""
         if not self.target_file:
             self.log_status("⚠️ No target file selected")
-            print("🔍 DEBUG: No target file selected")
+debug_logger.log(f"🔍 DEBUG: No target file selected")
             return
         
         def analyze_thread():
             try:
                 self.log_status("📊 Starting target audio analysis...")
-                print("🔍 DEBUG: Starting analyze_target_audio()")
-                print(f"🔍 DEBUG: Target file: {self.target_file}")
+debug_logger.log(f"🔍 DEBUG: Starting analyze_target_audio()")
+debug_logger.log(f"🔍 DEBUG: Target file: {self.target_file}")
                 
                 # Try to use AutoToneMatcher for real analysis
                 try:
                     self.log_status("🔧 Creating tone matcher...")
-                    print("🔍 DEBUG: Creating AutoToneMatcher...")
+debug_logger.log(f"🔍 DEBUG: Creating AutoToneMatcher...")
                     
                     from auto_tone_match_magicstomp import AutoToneMatcher
                     tone_matcher = AutoToneMatcher('essentia')  # Use essentia backend
-                    print("🔍 DEBUG: AutoToneMatcher created successfully")
+debug_logger.log(f"🔍 DEBUG: AutoToneMatcher created successfully")
                     self.log_status("✅ Tone matcher created")
                     
                     # Analyze audio with detailed debug
                     self.log_status("🎵 Analyzing audio features...")
-                    print("🔍 DEBUG: Calling tone_matcher.analyze_audio()...")
+debug_logger.log(f"🔍 DEBUG: Calling tone_matcher.analyze_audio()...")
                     
                     features = tone_matcher.analyze_audio(self.target_file, verbose=True)
-                    print(f"🔍 DEBUG: Analysis features: {features}")
+debug_logger.log(f"🔍 DEBUG: Analysis features: {features}")
                     self.log_status("✅ Audio features extracted")
                     
                     # Map to patch with debug
                     self.log_status("🎛️ Mapping features to patch...")
-                    print("🔍 DEBUG: Calling tone_matcher.map_to_patch()...")
+debug_logger.log(f"🔍 DEBUG: Calling tone_matcher.map_to_patch()...")
                     
                     patch = tone_matcher.map_to_patch()
-                    print(f"🔍 DEBUG: Generated patch: {patch}")
+debug_logger.log(f"🔍 DEBUG: Generated patch: {patch}")
                     self.log_status("✅ Patch generated from analysis")
                     
                     # Store results
@@ -550,14 +607,14 @@ class SplitVerticalGUIAnalysisMixin:
                         self.root.after(100, self.auto_generate_patch_proposal)
                     
                 except Exception as e:
-                    print(f"🔍 DEBUG: AutoToneMatcher error: {e}")
+debug_logger.log(f"🔍 DEBUG: AutoToneMatcher error: {e}")
                     import traceback
                     traceback.print_exc()
                     self.log_status(f"⚠️ Using fallback analysis: {e}")
                     
                     # Fallback to basic analysis
                     self.log_status("📊 Running fallback analysis...")
-                    print("🔍 DEBUG: Running fallback analysis...")
+debug_logger.log(f"🔍 DEBUG: Running fallback analysis...")
                     
                     # Load audio file
                     audio_data, sample_rate = sf.read(self.target_file)
@@ -601,7 +658,7 @@ File: {Path(self.target_file).name}"""
                         'file_path': self.target_file
                     }
                     
-                    print(f"🔍 DEBUG: Fallback analysis completed: {self.analysis_data['target']}")
+debug_logger.log(f"🔍 DEBUG: Fallback analysis completed: {self.analysis_data['target']}")
                     self.root.after(0, lambda: self.display_analysis_results(results))
                     self.root.after(0, lambda: self.log_status("✅ Fallback analysis completed"))
                     
@@ -616,7 +673,7 @@ File: {Path(self.target_file).name}"""
                         self.root.after(100, self.auto_generate_patch_proposal)
                 
             except Exception as e:
-                print(f"🔍 DEBUG: Fatal error in analyze_thread: {e}")
+debug_logger.log(f"🔍 DEBUG: Fatal error in analyze_thread: {e}")
                 import traceback
                 traceback.print_exc()
                 self.root.after(0, lambda: self.log_status(f"❌ Analysis error: {e}"))
@@ -625,15 +682,15 @@ File: {Path(self.target_file).name}"""
     
     def generate_basic_patch_from_fallback(self):
         """Generate basic patch from fallback analysis data."""
-        print("🔍 DEBUG: Starting generate_basic_patch_from_fallback()")
+debug_logger.log(f"🔍 DEBUG: Starting generate_basic_patch_from_fallback()")
         
         if 'target' not in self.analysis_data:
-            print("🔍 DEBUG: No target analysis data for basic patch generation")
+debug_logger.log(f"🔍 DEBUG: No target analysis data for basic patch generation")
             return
         
         try:
             target_data = self.analysis_data['target']
-            print(f"🔍 DEBUG: Target data for basic patch: {target_data}")
+debug_logger.log(f"🔍 DEBUG: Target data for basic patch: {target_data}")
             
             # Create a basic patch structure based on analysis
             duration = target_data.get('duration', 1.0)
@@ -675,7 +732,7 @@ File: {Path(self.target_file).name}"""
             }
             
             self.current_patch = basic_patch
-            print(f"🔍 DEBUG: Generated basic patch: {basic_patch}")
+debug_logger.log(f"🔍 DEBUG: Generated basic patch: {basic_patch}")
             
             # Display patch parameters
             self.display_patch_parameters()
@@ -691,11 +748,11 @@ File: {Path(self.target_file).name}"""
             # Try to apply patch to current effect widget if available
             if self.current_effect_widget and hasattr(self.current_effect_widget, 'set_all_parameters'):
                 try:
-                    print("🔍 DEBUG: Applying basic patch to current effect widget...")
+debug_logger.log(f"🔍 DEBUG: Applying basic patch to current effect widget...")
                     
                     # Convert patch to widget parameters
                     widget_params = self.convert_patch_to_widget_params(basic_patch)
-                    print(f"🔍 DEBUG: Converted widget params: {widget_params}")
+debug_logger.log(f"🔍 DEBUG: Converted widget params: {widget_params}")
                     
                     if widget_params:
                         # Apply parameters to effect widget
@@ -707,28 +764,28 @@ File: {Path(self.target_file).name}"""
                         
                         # Update impact visualization
                         if self.impact_visualizer:
-                            print("🔍 DEBUG: Updating impact visualization with basic patch...")
+debug_logger.log(f"🔍 DEBUG: Updating impact visualization with basic patch...")
                             self.update_impact_visualization()
                         
                         self.log_status("🎛️ Basic patch applied to current effect!")
                         self.log_status("💡 Go to Analysis tab to see the parameter impacts!")
-                        print("🔍 DEBUG: Basic patch successfully applied to effect widget")
+debug_logger.log(f"🔍 DEBUG: Basic patch successfully applied to effect widget")
                     else:
                         self.log_status("⚠️ Could not convert patch to widget parameters")
                         self.log_status("💡 Load an effect in Effects tab to apply parameters")
                         
                 except Exception as e:
-                    print(f"🔍 DEBUG: Error applying basic patch to effect: {e}")
+debug_logger.log(f"🔍 DEBUG: Error applying basic patch to effect: {e}")
                     import traceback
                     traceback.print_exc()
                     self.log_status(f"⚠️ Error applying patch to effect: {e}")
                     self.log_status("💡 Load an effect in Effects tab to apply parameters")
             else:
                 self.log_status("💡 Load an effect in Effects tab to apply parameters")
-                print("🔍 DEBUG: No effect widget loaded - patch ready for manual application")
+debug_logger.log(f"🔍 DEBUG: No effect widget loaded - patch ready for manual application")
             
         except Exception as e:
-            print(f"🔍 DEBUG: Error generating basic patch: {e}")
+debug_logger.log(f"🔍 DEBUG: Error generating basic patch: {e}")
             import traceback
             traceback.print_exc()
             self.log_status(f"❌ Error generating basic patch: {e}")
@@ -737,13 +794,13 @@ File: {Path(self.target_file).name}"""
         """Display patch parameters in the GUI."""
         if not self.current_patch:
             self.log_status("⚠️ No patch to display")
-            print("🔍 DEBUG: No patch to display")
+debug_logger.log(f"🔍 DEBUG: No patch to display")
             return
         
         try:
             self.log_status("🎛️ Displaying patch parameters...")
-            print("🔍 DEBUG: Displaying patch parameters...")
-            print(f"🔍 DEBUG: Patch data: {self.current_patch}")
+debug_logger.log(f"🔍 DEBUG: Displaying patch parameters...")
+debug_logger.log(f"🔍 DEBUG: Patch data: {self.current_patch}")
             
             # Clear existing widgets
             if hasattr(self, 'patch_display_frame'):
@@ -819,11 +876,11 @@ File: {Path(self.target_file).name}"""
             self.patch_canvas.configure(scrollregion=self.patch_canvas.bbox("all"))
             
             self.log_status("✅ Patch parameters displayed")
-            print("🔍 DEBUG: Patch parameters displayed successfully")
+debug_logger.log(f"🔍 DEBUG: Patch parameters displayed successfully")
             
         except Exception as e:
             self.log_status(f"❌ Error displaying patch: {e}")
-            print(f"🔍 DEBUG: Error displaying patch: {e}")
+debug_logger.log(f"🔍 DEBUG: Error displaying patch: {e}")
             import traceback
             traceback.print_exc()
     
@@ -1034,33 +1091,33 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
     
     def auto_generate_patch_proposal(self):
         """Auto-generate patch proposal based on analysis."""
-        print("🔍 DEBUG: Starting auto_generate_patch_proposal()")
+debug_logger.log(f"🔍 DEBUG: Starting auto_generate_patch_proposal()")
         
         if not self.analysis_data.get('target'):
             self.log_status("⚠️ No target analysis data available")
-            print("🔍 DEBUG: No target analysis data")
+debug_logger.log(f"🔍 DEBUG: No target analysis data")
             return
         
         self.log_status("🤖 Auto-generating patch proposal based on analysis...")
-        print("🔍 DEBUG: Auto-generating patch proposal based on analysis...")
+debug_logger.log(f"🔍 DEBUG: Auto-generating patch proposal based on analysis...")
         
         # Get target analysis data
         target_data = self.analysis_data['target']
-        print(f"🔍 DEBUG: Target data: {target_data}")
+debug_logger.log(f"🔍 DEBUG: Target data: {target_data}")
         
         # Generate smart parameters based on analysis
         proposed_params = self.generate_smart_parameters_from_analysis(target_data)
-        print(f"🔍 DEBUG: Generated proposed_params: {proposed_params}")
+debug_logger.log(f"🔍 DEBUG: Generated proposed_params: {proposed_params}")
         
         if proposed_params:
-            print("🔍 DEBUG: Applying parameters to effect widget...")
+debug_logger.log(f"🔍 DEBUG: Applying parameters to effect widget...")
             
             # Apply proposed parameters to widget
             if self.current_effect_widget and hasattr(self.current_effect_widget, 'set_all_parameters'):
                 self.current_effect_widget.set_all_parameters(proposed_params)
-                print("🔍 DEBUG: Parameters applied to effect widget")
+debug_logger.log(f"🔍 DEBUG: Parameters applied to effect widget")
             else:
-                print("🔍 DEBUG: No effect widget or set_all_parameters method")
+debug_logger.log(f"🔍 DEBUG: No effect widget or set_all_parameters method")
                 self.log_status("⚠️ No effect widget loaded")
             
             self.current_parameters = proposed_params
@@ -1070,43 +1127,43 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
             
             # Update impact visualization
             if self.impact_visualizer:
-                print("🔍 DEBUG: Updating impact visualization...")
+debug_logger.log(f"🔍 DEBUG: Updating impact visualization...")
                 self.update_impact_visualization()
-                print("🔍 DEBUG: Impact visualization updated")
+debug_logger.log(f"🔍 DEBUG: Impact visualization updated")
             else:
-                print("🔍 DEBUG: No impact visualizer available")
+debug_logger.log(f"🔍 DEBUG: No impact visualizer available")
             
             param_names = list(proposed_params.keys())
             self.log_status(f"🤖 Auto-generated {len(param_names)} parameters: {', '.join(param_names)}")
             self.log_status("💡 Go to Analysis tab to see the parameter impacts!")
-            print(f"🔍 DEBUG: Auto-generation completed with {len(param_names)} parameters")
+debug_logger.log(f"🔍 DEBUG: Auto-generation completed with {len(param_names)} parameters")
         else:
             self.log_status("⚠️ Could not generate patch proposal")
-            print("🔍 DEBUG: Could not generate patch proposal")
+debug_logger.log(f"🔍 DEBUG: Could not generate patch proposal")
     
     def generate_smart_parameters_from_analysis(self, target_data):
         """Generate smart parameters based on audio analysis."""
-        print("🔍 DEBUG: Starting generate_smart_parameters_from_analysis()")
+debug_logger.log(f"🔍 DEBUG: Starting generate_smart_parameters_from_analysis()")
         proposed_params = {}
         
         if not self.current_effect_type:
-            print("🔍 DEBUG: No current_effect_type")
+debug_logger.log(f"🔍 DEBUG: No current_effect_type")
             return proposed_params
         
-        print(f"🔍 DEBUG: Current effect type: {self.current_effect_type}")
-        print(f"🔍 DEBUG: Target data: {target_data}")
+debug_logger.log(f"🔍 DEBUG: Current effect type: {self.current_effect_type}")
+debug_logger.log(f"🔍 DEBUG: Target data: {target_data}")
         
         # Get peak frequency for intelligent parameter setting
         peak_freq = target_data.get('peak_frequency', 1000)
         rms_level = target_data.get('rms_level', 0.5)
         duration = target_data.get('duration', 1.0)
         
-        print(f"🔍 DEBUG: Using analysis data - peak_freq: {peak_freq}, rms: {rms_level}, duration: {duration}")
+debug_logger.log(f"🔍 DEBUG: Using analysis data - peak_freq: {peak_freq}, rms: {rms_level}, duration: {duration}")
         
         # Handle multi-channel peak frequency
         if isinstance(peak_freq, str) and peak_freq == "Multi-channel":
             peak_freq = 1000  # Default frequency for multi-channel
-            print("🔍 DEBUG: Multi-channel detected, using default frequency 1000Hz")
+debug_logger.log(f"🔍 DEBUG: Multi-channel detected, using default frequency 1000Hz")
         
         if self.current_effect_type == 0x0D:  # Mono Delay
             # Smart delay time based on duration and frequency
@@ -1169,52 +1226,52 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
         for param_name, value in proposed_params.items():
             proposed_params[param_name] = self.apply_parameter_limits(param_name, value)
         
-        print(f"🔍 DEBUG: Final proposed_params: {proposed_params}")
+debug_logger.log(f"🔍 DEBUG: Final proposed_params: {proposed_params}")
         return proposed_params
     
     def generate_patch(self):
         """Generate patch."""
-        print("🔍 DEBUG: Starting generate_patch()")
+debug_logger.log(f"🔍 DEBUG: Starting generate_patch()")
         
         if not self.target_file:
             self.log_status("⚠️ Please select target file first")
-            print("🔍 DEBUG: No target file selected")
+debug_logger.log(f"🔍 DEBUG: No target file selected")
             return
         
         if not (self.di_file or self.is_live_di_capturing):
             self.log_status("⚠️ Please select DI file or start live DI capture")
-            print("🔍 DEBUG: No DI file or live capture")
+debug_logger.log(f"🔍 DEBUG: No DI file or live capture")
             return
         
         if not self.current_effect_widget:
             self.log_status("⚠️ Please load an effect first (go to Effects tab)")
-            print("🔍 DEBUG: No current effect widget")
+debug_logger.log(f"🔍 DEBUG: No current effect widget")
             return
         
         self.log_status("🎯 Generating patch...")
-        print("🔍 DEBUG: Starting patch generation...")
-        print(f"🔍 DEBUG: Target file: {self.target_file}")
-        print(f"🔍 DEBUG: DI file: {self.di_file}")
-        print(f"🔍 DEBUG: Live DI capturing: {self.is_live_di_capturing}")
-        print(f"🔍 DEBUG: Current effect type: {self.current_effect_type}")
+debug_logger.log(f"🔍 DEBUG: Starting patch generation...")
+debug_logger.log(f"🔍 DEBUG: Target file: {self.target_file}")
+debug_logger.log(f"🔍 DEBUG: DI file: {self.di_file}")
+debug_logger.log(f"🔍 DEBUG: Live DI capturing: {self.is_live_di_capturing}")
+debug_logger.log(f"🔍 DEBUG: Current effect type: {self.current_effect_type}")
         
         def generate_thread():
             try:
-                print("🔍 DEBUG: Getting current parameters from effect widget...")
+debug_logger.log(f"🔍 DEBUG: Getting current parameters from effect widget...")
                 current_params = self.current_effect_widget.get_all_parameters()
-                print(f"🔍 DEBUG: Current parameters: {current_params}")
+debug_logger.log(f"🔍 DEBUG: Current parameters: {current_params}")
                 
                 magicstomp_params = {}
                 for param_name, value in current_params.items():
-                    print(f"🔍 DEBUG: Processing parameter: {param_name} = {value}")
+debug_logger.log(f"🔍 DEBUG: Processing parameter: {param_name} = {value}")
                     for child in self.current_effect_widget.winfo_children():
                         if hasattr(child, 'param_name') and child.param_name == param_name:
                             magicstomp_value = self.current_effect_widget._convert_to_magicstomp(child, value)
                             magicstomp_params[param_name] = magicstomp_value
-                            print(f"🔍 DEBUG: Converted {param_name}: {value} -> {magicstomp_value}")
+debug_logger.log(f"🔍 DEBUG: Converted {param_name}: {value} -> {magicstomp_value}")
                             break
                 
-                print(f"🔍 DEBUG: Final magicstomp_params: {magicstomp_params}")
+debug_logger.log(f"🔍 DEBUG: Final magicstomp_params: {magicstomp_params}")
                 
                 # Simulate progress
                 for i in range(101):
@@ -1228,7 +1285,7 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                     "di_file": self.di_file if self.di_file else "LIVE_DI_CAPTURE"
                 }
                 
-                print(f"🔍 DEBUG: Generated patch: {self.current_patch}")
+debug_logger.log(f"🔍 DEBUG: Generated patch: {self.current_patch}")
                 
                 self.root.after(0, lambda: self.log_status(f"✅ Patch generated ({len(magicstomp_params)} params)"))
                 def log_effect_label():
@@ -1243,7 +1300,7 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                 self.root.after(0, self.display_patch_parameters)
                 
             except Exception as e:
-                print(f"🔍 DEBUG: Error in generate_thread: {e}")
+debug_logger.log(f"🔍 DEBUG: Error in generate_thread: {e}")
                 import traceback
                 traceback.print_exc()
                 self.root.after(0, lambda: self.log_status(f"❌ Error generating patch: {e}"))
@@ -1252,35 +1309,35 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
     
     def apply_patch_to_effects(self):
         """Apply current patch to loaded effect widgets."""
-        print("🔍 DEBUG: Starting apply_patch_to_effects()")
+debug_logger.log(f"🔍 DEBUG: Starting apply_patch_to_effects()")
         
         if not self.current_patch:
             self.log_status("⚠️ No patch to apply")
-            print("🔍 DEBUG: No current patch to apply")
+debug_logger.log(f"🔍 DEBUG: No current patch to apply")
             return
         
         if not self.current_effect_widget:
             self.log_status("⚠️ No effect loaded - please load an effect in Effects tab first")
-            print("🔍 DEBUG: No current effect widget")
+debug_logger.log(f"🔍 DEBUG: No current effect widget")
             return
         
         try:
             self.log_status("🎛️ Applying patch to current effect...")
-            print("🔍 DEBUG: Applying patch to current effect...")
-            print(f"🔍 DEBUG: Current patch: {self.current_patch}")
+debug_logger.log(f"🔍 DEBUG: Applying patch to current effect...")
+debug_logger.log(f"🔍 DEBUG: Current patch: {self.current_patch}")
             
             # Convert patch to widget parameters
             widget_params = self.convert_patch_to_widget_params(self.current_patch)
-            print(f"🔍 DEBUG: Converted widget params: {widget_params}")
+debug_logger.log(f"🔍 DEBUG: Converted widget params: {widget_params}")
             
             if widget_params:
                 # Apply parameters to effect widget
                 if hasattr(self.current_effect_widget, 'set_all_parameters'):
                     self.current_effect_widget.set_all_parameters(widget_params)
-                    print("🔍 DEBUG: Parameters applied to effect widget")
+debug_logger.log(f"🔍 DEBUG: Parameters applied to effect widget")
                 else:
                     self.log_status("⚠️ Effect widget doesn't support set_all_parameters")
-                    print("🔍 DEBUG: Effect widget doesn't support set_all_parameters")
+debug_logger.log(f"🔍 DEBUG: Effect widget doesn't support set_all_parameters")
                     return
                 
                 # Update current parameters
@@ -1291,34 +1348,34 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                 
                 # Update impact visualization
                 if self.impact_visualizer:
-                    print("🔍 DEBUG: Updating impact visualization...")
+debug_logger.log(f"🔍 DEBUG: Updating impact visualization...")
                     self.update_impact_visualization()
-                    print("🔍 DEBUG: Impact visualization updated")
+debug_logger.log(f"🔍 DEBUG: Impact visualization updated")
                 else:
-                    print("🔍 DEBUG: No impact visualizer available")
+debug_logger.log(f"🔍 DEBUG: No impact visualizer available")
                 
                 param_names = list(widget_params.keys())
                 self.log_status(f"✅ Applied {len(param_names)} parameters to effect")
                 self.log_status("💡 Go to Analysis tab to see the parameter impacts!")
-                print(f"🔍 DEBUG: Successfully applied {len(param_names)} parameters: {param_names}")
+debug_logger.log(f"🔍 DEBUG: Successfully applied {len(param_names)} parameters: {param_names}")
                 
             else:
                 self.log_status("⚠️ Could not convert patch to widget parameters")
-                print("🔍 DEBUG: Could not convert patch to widget parameters")
+debug_logger.log(f"🔍 DEBUG: Could not convert patch to widget parameters")
                 
         except Exception as e:
             self.log_status(f"❌ Error applying patch to effects: {e}")
-            print(f"🔍 DEBUG: Error applying patch to effects: {e}")
+debug_logger.log(f"🔍 DEBUG: Error applying patch to effects: {e}")
             import traceback
             traceback.print_exc()
     
     def save_patch(self):
         """Save current patch to file."""
-        print("🔍 DEBUG: Starting save_patch()")
+debug_logger.log(f"🔍 DEBUG: Starting save_patch()")
         
         if not self.current_patch:
             self.log_status("⚠️ No patch to save")
-            print("🔍 DEBUG: No current patch to save")
+debug_logger.log(f"🔍 DEBUG: No current patch to save")
             return
         
         try:
@@ -1331,10 +1388,10 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
             )
             
             if not patch_file:
-                print("🔍 DEBUG: User cancelled patch save")
+debug_logger.log(f"🔍 DEBUG: User cancelled patch save")
                 return
             
-            print(f"🔍 DEBUG: Saving patch to: {patch_file}")
+debug_logger.log(f"🔍 DEBUG: Saving patch to: {patch_file}")
             
             # Add metadata
             patch_to_save = {
@@ -1354,17 +1411,17 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                 json.dump(patch_to_save, f, indent=2)
             
             self.log_status(f"✅ Patch saved to: {Path(patch_file).name}")
-            print(f"🔍 DEBUG: Patch saved successfully to {patch_file}")
+debug_logger.log(f"🔍 DEBUG: Patch saved successfully to {patch_file}")
             
         except Exception as e:
             self.log_status(f"❌ Error saving patch: {e}")
-            print(f"🔍 DEBUG: Error saving patch: {e}")
+debug_logger.log(f"🔍 DEBUG: Error saving patch: {e}")
             import traceback
             traceback.print_exc()
     
     def load_patch(self):
         """Load patch from file."""
-        print("🔍 DEBUG: Starting load_patch()")
+debug_logger.log(f"🔍 DEBUG: Starting load_patch()")
         
         try:
             # Ask user for file location
@@ -1374,10 +1431,10 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
             )
             
             if not patch_file:
-                print("🔍 DEBUG: User cancelled patch load")
+debug_logger.log(f"🔍 DEBUG: User cancelled patch load")
                 return
             
-            print(f"🔍 DEBUG: Loading patch from: {patch_file}")
+debug_logger.log(f"🔍 DEBUG: Loading patch from: {patch_file}")
             
             # Load from file
             with open(patch_file, 'r') as f:
@@ -1388,8 +1445,8 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                 self.current_patch = patch_data['patch']
                 metadata = patch_data.get('metadata', {})
                 
-                print(f"🔍 DEBUG: Loaded patch: {self.current_patch}")
-                print(f"🔍 DEBUG: Metadata: {metadata}")
+debug_logger.log(f"🔍 DEBUG: Loaded patch: {self.current_patch}")
+debug_logger.log(f"🔍 DEBUG: Metadata: {metadata}")
                 
                 # Update status with metadata
                 created_date = metadata.get('created_date', 'Unknown')
@@ -1409,7 +1466,7 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                 self.save_settings()
                 
                 # Try to identify and auto-load effects from patch
-                print(f"🔍 DEBUG: About to auto-load effects from patch: {self.current_patch}")
+debug_logger.log(f"🔍 DEBUG: About to auto-load effects from patch: {self.current_patch}")
                 self.auto_load_effects_from_patch()
                 
                 # Apply patch parameters to widgets after a short delay
@@ -1424,22 +1481,22 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                         self.current_parameters = widget_params
                         self.log_status("🎛️ Parameters applied to current effect")
                         self.log_status("💡 Go to Effects tab to see the visual representation!")
-                        print(f"🔍 DEBUG: Applied parameters to effect: {widget_params}")
+debug_logger.log(f"🔍 DEBUG: Applied parameters to effect: {widget_params}")
                         
                         # Auto-update impact visualization after applying patch
                         self.root.after(100, self.update_impact_visualization)
                         self.log_status("📊 Impact visualization updated automatically")
                 else:
                     self.log_status("💡 Load an effect in Effects tab, then click '🎛️ Apply to Effects' to see visual representation")
-                    print("🔍 DEBUG: No effect loaded - patch ready for manual application")
+debug_logger.log(f"🔍 DEBUG: No effect loaded - patch ready for manual application")
                 
             else:
                 self.log_status("⚠️ Invalid patch file format")
-                print("🔍 DEBUG: Invalid patch file - no 'patch' key found")
+debug_logger.log(f"🔍 DEBUG: Invalid patch file - no 'patch' key found")
                 
         except Exception as e:
             self.log_status(f"❌ Error loading patch: {e}")
-            print(f"🔍 DEBUG: Error loading patch: {e}")
+debug_logger.log(f"🔍 DEBUG: Error loading patch: {e}")
             import traceback
             traceback.print_exc()
     
@@ -1504,8 +1561,8 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
     
     def convert_patch_to_widget_params(self, patch):
         """Convert patch format to widget parameters format."""
-        print("🔍 DEBUG: Starting convert_patch_to_widget_params()")
-        print(f"🔍 DEBUG: Input patch: {patch}")
+debug_logger.log(f"🔍 DEBUG: Starting convert_patch_to_widget_params()")
+debug_logger.log(f"🔍 DEBUG: Input patch: {patch}")
         
         try:
             widget_params = {}
@@ -1513,7 +1570,7 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
             # Extract parameters from patch sections with proper mapping
             for section_name, section_data in patch.items():
                 if isinstance(section_data, dict) and section_name != 'meta':
-                    print(f"🔍 DEBUG: Processing section: {section_name}")
+debug_logger.log(f"🔍 DEBUG: Processing section: {section_name}")
                     
                     if section_name == 'compressor':
                         # Map compressor parameters
@@ -1567,21 +1624,21 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                         # Paramètres par défaut pour le delay
                         widget_params['high_ratio'] = 0.0
             
-            print(f"🔍 DEBUG: Final converted widget params: {widget_params}")
+debug_logger.log(f"🔍 DEBUG: Final converted widget params: {widget_params}")
             return widget_params
             
         except Exception as e:
-            print(f"🔍 DEBUG: Error converting patch: {e}")
+debug_logger.log(f"🔍 DEBUG: Error converting patch: {e}")
             import traceback
             traceback.print_exc()
             return {}
     
     def auto_load_effects_from_patch(self):
         """Auto-identify and load effects from patch data."""
-        print("🔍 DEBUG: Starting auto_load_effects_from_patch()")
+debug_logger.log(f"🔍 DEBUG: Starting auto_load_effects_from_patch()")
         
         if not self.current_patch:
-            print("🔍 DEBUG: No current patch to analyze")
+debug_logger.log(f"🔍 DEBUG: No current patch to analyze")
             return
         
         # Clear existing effect widgets before loading new ones
@@ -1600,10 +1657,10 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
             unverified_names = [match.display_name for match in unverified_matches]
             duplicate_names = [match.display_name for match in duplicate_matches]
 
-            print(f"🔍 DEBUG: Official matches: {official_names}")
-            print(f"🔍 DEBUG: Unsupported matches: {unsupported_names}")
-            print(f"🔍 DEBUG: Unverified matches: {unverified_names}")
-            print(f"🔍 DEBUG: Duplicate matches: {duplicate_names}")
+debug_logger.log(f"🔍 DEBUG: Official matches: {official_names}")
+debug_logger.log(f"🔍 DEBUG: Unsupported matches: {unsupported_names}")
+debug_logger.log(f"🔍 DEBUG: Unverified matches: {unverified_names}")
+debug_logger.log(f"🔍 DEBUG: Duplicate matches: {duplicate_names}")
 
             if not official_matches:
                 if unsupported_names:
@@ -1612,12 +1669,12 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                     self.log_status(f"ℹ️ Effect hints outside official catalog: {', '.join(unverified_names)}")
                 if duplicate_names:
                     self.log_status(f"ℹ️ Duplicate effect hints ignored: {', '.join(duplicate_names)}")
-                print("🔍 DEBUG: No official effects identified in patch")
+debug_logger.log(f"🔍 DEBUG: No official effects identified in patch")
                 self.log_status("💡 No specific effects identified in patch - manual selection required")
                 return
 
             self.log_status(f"🔍 Identified effects: {', '.join(official_names)}")
-            print(f"🔍 DEBUG: Loading effect cascade with {len(official_matches)} effects")
+debug_logger.log(f"🔍 DEBUG: Loading effect cascade with {len(official_matches)} effects")
             self.log_status(f"🎛️ Loading effect cascade: {len(official_matches)} effects")
 
             loaded_effects: List[EffectMatch] = []
@@ -1632,16 +1689,16 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                 self.log_status(f"🎛️ Loading effect {i}/{len(official_matches)}: {display_name}")
 
                 success, info = self.add_effect_to_cascade(match)
-                print(f"🔍 DEBUG: add_effect_to_cascade returned: {success}, info: {info}")
+debug_logger.log(f"🔍 DEBUG: add_effect_to_cascade returned: {success}, info: {info}")
 
                 if success:
                     loaded_effects.append(match)
                     self.log_status(f"✅ Loaded: {display_name}")
-                    print(f"🔍 DEBUG: Successfully loaded effect: {display_name}")
+debug_logger.log(f"🔍 DEBUG: Successfully loaded effect: {display_name}")
                 else:
                     load_failures.append((match, info))
                     self.log_status(f"❌ Failed to load {display_name}: {info}")
-                    print(f"🔍 DEBUG: Failed to load effect: {display_name} ({info})")
+debug_logger.log(f"🔍 DEBUG: Failed to load effect: {display_name} ({info})")
 
             # Report cascade status
             if loaded_effects:
@@ -1650,93 +1707,93 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
                     f"🎛️ Effect cascade loaded: {len(loaded_effects)}/{len(official_matches)} effects"
                     f" ({', '.join(loaded_display_names)})"
                 )
-                print(f"🔍 DEBUG: Effect cascade loaded: {[match.display_name for match in loaded_effects]}")
+debug_logger.log(f"🔍 DEBUG: Effect cascade loaded: {[match.display_name for match in loaded_effects]}")
                     
                 # Check if we need to restore a queued patch
-                print(f"🔍 DEBUG: Checking for queued patch restoration...")
+debug_logger.log(f"🔍 DEBUG: Checking for queued patch restoration...")
                 print(
                     f"🔍 DEBUG: - hasattr patch_to_restore: {hasattr(self, 'patch_to_restore')}"
                 )
                 if hasattr(self, 'patch_to_restore'):
-                    print(f"🔍 DEBUG: - patch_to_restore value: {self.patch_to_restore}")
+debug_logger.log(f"🔍 DEBUG: - patch_to_restore value: {self.patch_to_restore}")
                 if hasattr(self, 'patch_to_restore') and self.patch_to_restore:
-                    print("🔍 DEBUG: Widgets loaded, triggering patch restoration")
+debug_logger.log(f"🔍 DEBUG: Widgets loaded, triggering patch restoration")
                     self.root.after(
                         500, self.reload_restored_patch
                     )  # Small delay to ensure widgets are ready
                 else:
-                    print("🔍 DEBUG: No queued patch to restore")
+debug_logger.log(f"🔍 DEBUG: No queued patch to restore")
 
                 # Auto-apply patch parameters to the last loaded effect (current active one)
-                    print(f"🔍 DEBUG: Checking auto-apply conditions:")
-                    print(f"🔍 DEBUG: - current_patch: {bool(self.current_patch)}")
-                    print(f"🔍 DEBUG: - current_effect_widget: {bool(self.current_effect_widget)}")
-                    print(f"🔍 DEBUG: - has set_all_parameters: {hasattr(self.current_effect_widget, 'set_all_parameters') if self.current_effect_widget else False}")
+debug_logger.log(f"🔍 DEBUG: Checking auto-apply conditions:")
+debug_logger.log(f"🔍 DEBUG: - current_patch: {bool(self.current_patch)}")
+debug_logger.log(f"🔍 DEBUG: - current_effect_widget: {bool(self.current_effect_widget)}")
+debug_logger.log(f"🔍 DEBUG: - has set_all_parameters: {hasattr(self.current_effect_widget, 'set_all_parameters') if self.current_effect_widget else False}")
                     
                     if (self.current_patch and self.effect_widget_cascade) or getattr(self, 'auto_apply_restored_patch', False):
-                        print(f"🔍 DEBUG: All conditions met, proceeding with auto-apply")
+debug_logger.log(f"🔍 DEBUG: All conditions met, proceeding with auto-apply")
                         is_restored_patch = getattr(self, 'auto_apply_restored_patch', False)
                         if is_restored_patch:
-                            print(f"🔍 DEBUG: Auto-applying restored patch to widgets")
+debug_logger.log(f"🔍 DEBUG: Auto-applying restored patch to widgets")
                         widget_params = self.convert_patch_to_widget_params(self.current_patch)
-                        print(f"🔍 DEBUG: Converted widget params: {widget_params}")
+debug_logger.log(f"🔍 DEBUG: Converted widget params: {widget_params}")
                         
                         if widget_params:
                             # Appliquer les paramètres à tous les widgets de la cascade
-                            print(f"🔍 DEBUG: Applying parameters to all widgets in cascade")
+debug_logger.log(f"🔍 DEBUG: Applying parameters to all widgets in cascade")
                             for i, effect_widget in enumerate(self.effect_widget_cascade):
                                 try:
                                     widget_type = type(effect_widget).__name__
-                                    print(f"🔍 DEBUG: Applying to widget {i}: {widget_type}")
+debug_logger.log(f"🔍 DEBUG: Applying to widget {i}: {widget_type}")
                                     
                                     # Obtenir les paramètres spécifiques à ce widget
                                     specific_params = self.get_widget_specific_params(widget_type, widget_params)
-                                    print(f"🔍 DEBUG: Specific params for {widget_type}: {specific_params}")
+debug_logger.log(f"🔍 DEBUG: Specific params for {widget_type}: {specific_params}")
                                     
                                     if specific_params:
                                         effect_widget.set_all_parameters(specific_params)
-                                        print(f"🔍 DEBUG: set_all_parameters succeeded for widget {i}")
+debug_logger.log(f"🔍 DEBUG: set_all_parameters succeeded for widget {i}")
                                     else:
-                                        print(f"🔍 DEBUG: No specific params for {widget_type}")
+debug_logger.log(f"🔍 DEBUG: No specific params for {widget_type}")
                                         
                                 except Exception as e:
-                                    print(f"🔍 DEBUG: Error applying to widget {i}: {e}")
+debug_logger.log(f"🔍 DEBUG: Error applying to widget {i}: {e}")
                             
                             # Mettre à jour les paramètres actuels et cibles
                             self.current_parameters = widget_params
                             self.target_parameters = widget_params.copy()
                             
                             # Update impact visualization
-                            print(f"🔍 DEBUG: Scheduling impact visualization update")
+debug_logger.log(f"🔍 DEBUG: Scheduling impact visualization update")
                             self.root.after(100, self.update_impact_visualization)
                             self.log_status("📊 Impact visualization updated automatically")
                             self.log_status("🎛️ Patch parameters applied to all auto-loaded effects")
                             self.log_status("💡 Go to Effects tab to see the visual representation!")
                             self.log_status("💡 Go to Analysis tab to see the parameter impacts!")
-                            print(f"🔍 DEBUG: Auto-applied patch parameters: {widget_params}")
+debug_logger.log(f"🔍 DEBUG: Auto-applied patch parameters: {widget_params}")
                             
                             # Reset the flag only after successful application
                             if is_restored_patch:
                                 self.auto_apply_restored_patch = False
-                                print(f"🔍 DEBUG: Reset auto_apply_restored_patch flag after successful application")
+debug_logger.log(f"🔍 DEBUG: Reset auto_apply_restored_patch flag after successful application")
                             
                             # Debug current state
-                            print(f"🔍 DEBUG: Current effect widget: {self.current_effect_widget}")
-                            print(f"🔍 DEBUG: Current effect type: {self.current_effect_type}")
-                            print(f"🔍 DEBUG: Current parameters: {self.current_parameters}")
-                            print(f"🔍 DEBUG: Target parameters: {self.target_parameters}")
+debug_logger.log(f"🔍 DEBUG: Current effect widget: {self.current_effect_widget}")
+debug_logger.log(f"🔍 DEBUG: Current effect type: {self.current_effect_type}")
+debug_logger.log(f"🔍 DEBUG: Current parameters: {self.current_parameters}")
+debug_logger.log(f"🔍 DEBUG: Target parameters: {self.target_parameters}")
                         else:
-                            print(f"🔍 DEBUG: No widget params to apply")
+debug_logger.log(f"🔍 DEBUG: No widget params to apply")
                     else:
-                        print(f"🔍 DEBUG: Cannot auto-apply - conditions not met")
-                        print(f"🔍 DEBUG: - current_effect_widget: {self.current_effect_widget}")
-                        print(f"🔍 DEBUG: - has set_all_parameters: {hasattr(self.current_effect_widget, 'set_all_parameters') if self.current_effect_widget else False}")
+debug_logger.log(f"🔍 DEBUG: Cannot auto-apply - conditions not met")
+debug_logger.log(f"🔍 DEBUG: - current_effect_widget: {self.current_effect_widget}")
+debug_logger.log(f"🔍 DEBUG: - has set_all_parameters: {hasattr(self.current_effect_widget, 'set_all_parameters') if self.current_effect_widget else False}")
                         self.log_status("⚠️ Effect loaded but cannot apply parameters")
             else:
                 failed_display_names = [match.display_name for match in official_matches]
                 failed_list = ', '.join(failed_display_names) if failed_display_names else 'None'
                 self.log_status(f"⚠️ Could not auto-load effects: {failed_list}")
-                print("🔍 DEBUG: Failed to auto-load any effects")
+debug_logger.log(f"🔍 DEBUG: Failed to auto-load any effects")
 
             summary_bits = []
             if loaded_effects:
@@ -1773,10 +1830,270 @@ Files Ready for Analysis: {'✅' if duration_diff < 0.1 else '⚠️'}"""
 
             if summary_bits:
                 self.log_status("🧾 Effect cascade summary -> " + " | ".join(summary_bits))
-                print(f"🔍 DEBUG: Summary bits: {summary_bits}")
+debug_logger.log(f"🔍 DEBUG: Summary bits: {summary_bits}")
                 
         except Exception as e:
-            print(f"🔍 DEBUG: Error in auto_load_effects_from_patch: {e}")
+debug_logger.log(f"🔍 DEBUG: Error in auto_load_effects_from_patch: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def _create_composite_effect_widgets(self, effect_section):
+        """Create additional widgets for composite effects like Distortion Multi (Flange)."""
+        try:
+debug_logger.log(f"🔍 DEBUG: Creating composite effect widgets from {len(effect_section)} bytes")
+            
+            # For Distortion Multi (Flange), create the 6 sub-effect widgets
+debug_logger.log(f"🔍 DEBUG: Creating Distortion Multi (Flange) sub-effects")
+            
+            # 1. Create Distortion widget (Overdrive 1)
+debug_logger.log(f"🔍 DEBUG: Creating Distortion widget")
+            distortion_params = self._extract_distortion_params(effect_section[0:20])
+            self._create_effect_widget("Distortion", distortion_params)
+            
+            # 2. Create Noise Gate widget
+debug_logger.log(f"🔍 DEBUG: Creating Noise Gate widget")
+            noise_gate_params = self._extract_noise_gate_params(effect_section[20:24])
+            self._create_effect_widget("Noise Gate", noise_gate_params)
+            
+            # 3. Create Compressor widget
+debug_logger.log(f"🔍 DEBUG: Creating Compressor widget")
+            compressor_params = self._extract_compressor_params(effect_section[24:30])
+            self._create_effect_widget("Compressor", compressor_params)
+            
+            # 4. Create Flange widget
+debug_logger.log(f"🔍 DEBUG: Creating Flange widget")
+            flange_params = self._extract_flange_params(effect_section[30:36])
+            self._create_effect_widget("Flange", flange_params)
+            
+            # 5. Create Delay widget
+debug_logger.log(f"🔍 DEBUG: Creating Delay widget")
+            delay_params = self._extract_delay_params(effect_section[36:44])
+            self._create_effect_widget("Mono Delay", delay_params)
+            
+            # 6. Create Reverb widget
+debug_logger.log(f"🔍 DEBUG: Creating Reverb widget")
+            reverb_params = self._extract_reverb_params(effect_section[44:52])
+            self._create_effect_widget("Reverb", reverb_params)
+            
+            self.log_status("✅ Distortion Multi (Flange) widgets created successfully")
+                
+        except Exception as e:
+debug_logger.log(f"🔍 DEBUG: Error creating composite effect widgets: {e}")
+            self.log_status(f"⚠️ Error creating composite effect widgets: {e}")
+    
+    def _extract_distortion_params(self, data):
+        """Extract distortion parameters from effect section data using MagicstompFrenzy offsets."""
+        if len(data) < 0x80:
+            return {}
+        
+        # Distortion parameters using MagicstompFrenzy offsets
+        # AmpType = 0x16, Gain = 0x1E, Master = 0x1F, Tone = 0x22
+        amp_type = data[0x16] if len(data) > 0x16 else 0
+        gain = data[0x1E] if len(data) > 0x1E else 0
+        master = data[0x1F] if len(data) > 0x1F else 0
+        tone = data[0x22] if len(data) > 0x22 else 0
+        
+        # EQ parameters
+        treble = data[0x24] if len(data) > 0x24 else 0
+        high_middle = data[0x25] if len(data) > 0x25 else 0
+        low_middle = data[0x26] if len(data) > 0x26 else 0
+        bass = data[0x27] if len(data) > 0x27 else 0
+        presence = data[0x28] if len(data) > 0x28 else 0
+        
+        return {
+            'Type': 'Overdrive 1',
+            'Gain': gain,
+            'Master': master,
+            'Tone': tone,
+            'EQ 1 Freq': 50.0,
+            'EQ 1 Gain': (bass - 64) / 127.0 * 20.0,
+            'EQ 1 Q': 0.1
+        }
+    
+    def _extract_noise_gate_params(self, data):
+        """Extract noise gate parameters from effect section data using MagicstompFrenzy offsets."""
+        if len(data) < 0x80:
+            return {}
+        
+        # Noise gate parameters using MagicstompFrenzy offsets
+        # NoiseGateThreshold = 0x2A, NoiseGateAttack = 0x2B, NoiseGateHold = 0x2C, NoiseGateDecay = 0x2D
+        threshold = data[0x2A] if len(data) > 0x2A else 0
+        attack = data[0x2B] if len(data) > 0x2B else 0
+        hold = data[0x2C] if len(data) > 0x2C else 0
+        decay = data[0x2D] if len(data) > 0x2D else 0
+        
+        return {
+            'threshold': threshold,
+            'hold': hold,
+            'attack': attack,
+            'decay': decay
+        }
+    
+    def _extract_compressor_params(self, data):
+        """Extract compressor parameters from effect section data using MagicstompFrenzy offsets."""
+        if len(data) < 0x80:
+            return {}
+        
+        # Compressor parameters using MagicstompFrenzy offsets
+        # CompressorThreshold = 0x04 (2 bytes), CompressorRatio = 0x34, CompressorAttack = 0x35, etc.
+        threshold = (data[0x04] << 8) + data[0x05] if len(data) > 0x05 else 0
+        ratio = data[0x34] if len(data) > 0x34 else 0
+        attack = data[0x35] if len(data) > 0x35 else 0
+        release = data[0x36] if len(data) > 0x36 else 0
+        knee = data[0x37] if len(data) > 0x37 else 0
+        gain = data[0x38] if len(data) > 0x38 else 0
+        
+        return {
+            'Threshold': (threshold - 32768) / 32768.0 * 96.0,  # Convert to dB
+            'Attack': attack,
+            'Slope': knee,
+            'Ratio': ratio,
+            'Release': release,
+            'Low Gain': (gain - 64) / 127.0 * 20.0
+        }
+    
+    def _extract_flange_params(self, data):
+        """Extract flange parameters from effect section data using MagicstompFrenzy offsets."""
+        if len(data) < 0x80:
+            return {}
+        
+        # Flange parameters using MagicstompFrenzy offsets
+        # ModWave = 0x19, ModSpeed = 0x3F, ModDepth = 0x40, FlangePhaserLevel = 0x42
+        wave = data[0x19] if len(data) > 0x19 else 0
+        speed = data[0x3F] if len(data) > 0x3F else 0
+        depth = data[0x40] if len(data) > 0x40 else 0
+        level = data[0x42] if len(data) > 0x42 else 0
+        
+        # ChorusFlangerDelay = 0x06 (2 bytes)
+        delay = (data[0x06] << 8) + data[0x07] if len(data) > 0x07 else 0
+        
+        return {
+            'Wave': wave,
+            'Freq.': speed,
+            'Depth': depth,
+            'FB. Gain': 0,
+            'Mod. Delay': delay,
+            'LSH Freq.': 0.0,
+            'LSH Gain': 0.0,
+            'EQ Freq.': 0.0,
+            'EQ Gain': 0.0,
+            'EQ Q': 0.0,
+            'HSH Freq.': 0.0,
+            'HSH Gain': 0.0,
+            'Mix': level
+        }
+    
+    def _extract_delay_params(self, data):
+        """Extract delay parameters from effect section data using MagicstompFrenzy offsets."""
+        if len(data) < 0x80:
+            return {}
+        
+        # Delay parameters using MagicstompFrenzy offsets
+        # DelayFeedback = 0x08 (2 bytes), DelayTapL = 0x4A, DelayTapR = 0x4B, etc.
+        feedback = (data[0x08] << 8) + data[0x09] if len(data) > 0x09 else 0
+        tap_l = data[0x4A] if len(data) > 0x4A else 0
+        tap_r = data[0x4B] if len(data) > 0x4B else 0
+        feedback_gain = data[0x4C] if len(data) > 0x4C else 0
+        high = data[0x4D] if len(data) > 0x4D else 0
+        level = data[0x4E] if len(data) > 0x4E else 0
+        hpf = data[0x52] if len(data) > 0x52 else 0
+        lpf = data[0x53] if len(data) > 0x53 else 0
+        
+        return {
+            'level': level,
+            'tap_l': tap_l,
+            'tap_r': tap_r,
+            'hpf': hpf,
+            'feedback': feedback,
+            'feedback_gain': feedback_gain,
+            'high': high,
+            'lpf': lpf
+        }
+    
+    def _extract_reverb_params(self, data):
+        """Extract reverb parameters from effect section data using MagicstompFrenzy offsets."""
+        if len(data) < 0x80:
+            return {}
+        
+        # Reverb parameters using MagicstompFrenzy offsets
+        # ReverbIniDelay = 0x0A (2 bytes), ReverbTime = 0x55, etc.
+        ini_delay = (data[0x0A] << 8) + data[0x0B] if len(data) > 0x0B else 0
+        time = data[0x55] if len(data) > 0x55 else 0
+        diffusion = data[0x56] if len(data) > 0x56 else 0
+        density = data[0x57] if len(data) > 0x57 else 0
+        level = data[0x58] if len(data) > 0x58 else 0
+        
+        return {
+            'Reverb Type': 'Hall',
+            'Initial Delay': ini_delay,
+            'ER/Rev Delay': 0.0,
+            'Reverb Time': time,
+            'High Ratio': 0.0,
+            'Low Ratio': 0.0,
+            'Diffusion': diffusion,
+            'Density': density,
+            'ER/Rev Balance': 0.0,
+            'High Pass Filter': 0.0,
+            'Low Pass Filter': 0.0,
+            'Gate Level': level,
+            'Attack': 0.0,
+            'Hold': 0.0,
+            'Decay': 0.0
+        }
+    
+    def _create_effect_widget(self, effect_name, params):
+        """Create an effect widget with the given parameters."""
+        try:
+debug_logger.log(f"🔍 DEBUG: Creating {effect_name} widget with params: {params}")
+            
+            # Create an EffectMatch object for the effect
+            from gui.split_vertical_shared import EffectMatch
+            
+            # Map effect names to their canonical names
+            effect_name_mapping = {
+                "Distortion": "Distortion",
+                "Noise Gate": "Noise Gate", 
+                "Compressor": "Compressor",
+                "Flange": "Flange",
+                "Mono Delay": "Mono Delay",
+                "Reverb": "Reverb"
+            }
+            
+            canonical_name = effect_name_mapping.get(effect_name, effect_name)
+            
+            # Create EffectMatch object
+            effect_match = EffectMatch(
+                section="composite_effect",
+                candidate=effect_name,
+                canonical_name=canonical_name,
+                official_name=canonical_name,
+                normalized_name=canonical_name.lower().replace(" ", "_"),
+                effect_type=None,  # Will be determined by the system
+                is_official=True,
+                is_supported=True,
+                reason="Composite effect sub-component"
+            )
+            
+            # Add the effect to the cascade
+            success, info = self.add_effect_to_cascade(effect_match)
+            if success:
+debug_logger.log(f"🔍 DEBUG: Successfully created {effect_name} widget")
+                
+                # Apply parameters if the widget supports it
+                if hasattr(self, 'current_effect_widget') and self.current_effect_widget:
+                    if hasattr(self.current_effect_widget, 'set_all_parameters'):
+debug_logger.log(f"🔍 DEBUG: Applying parameters to {effect_name} widget: {params}")
+                        self.current_effect_widget.set_all_parameters(params)
+debug_logger.log(f"🔍 DEBUG: Applied parameters to {effect_name} widget")
+                    else:
+debug_logger.log(f"🔍 DEBUG: Widget doesn't support set_all_parameters")
+                else:
+debug_logger.log(f"🔍 DEBUG: No current_effect_widget available")
+            else:
+debug_logger.log(f"🔍 DEBUG: Failed to create {effect_name} widget: {info}")
+            
+        except Exception as e:
+debug_logger.log(f"🔍 DEBUG: Error creating {effect_name} widget: {e}")
             import traceback
             traceback.print_exc()
 
